@@ -1,0 +1,99 @@
+{
+  "solid": {
+    "single_responsibility": {
+      "name": "Single Responsibility Principle",
+      "description": "A class should have only one reason to change. Each module, class, or function should encapsulate a single part of the functionality.",
+      "indicators": [
+        "class has >7 public methods",
+        "class imports >8 modules",
+        "function has >5 parameters",
+        "function has >3 distinct responsibilities",
+        "class mixes I/O, business logic, and data transformation"
+      ],
+      "recommendation": "Split into focused classes/functions, each handling one concern. Extract helpers for distinct responsibilities and use composition to combine them."
+    },
+    "open_closed": {
+      "name": "Open/Closed Principle",
+      "description": "Software entities should be open for extension but closed for modification. You should be able to add new behavior without changing existing code.",
+      "indicators": [
+        "excessive if/elif chains for type dispatch",
+        "switch statements or conditionals on object type",
+        "modifying existing classes to add new behavior instead of extending",
+        "adding new feature requires changes in >3 existing files"
+      ],
+      "recommendation": "Use polymorphism, strategy pattern, or plugin architectures. Define abstract base classes and add new behavior by creating new subclasses rather than modifying existing ones."
+    },
+    "liskov_substitution": {
+      "name": "Liskov Substitution Principle",
+      "description": "Objects of a superclass should be replaceable with objects of a subclass without breaking the program. Subtypes must honor the contracts of their base types.",
+      "indicators": [
+        "subclass overrides method and changes behavior semantics",
+        "isinstance checks in code that receives a base type",
+        "NotImplementedError raised in subclass for inherited methods",
+        "subclass strengthens preconditions or weakens postconditions"
+      ],
+      "recommendation": "Ensure subclasses fulfill the full contract of the base class. If a subclass cannot support an inherited method, reconsider the inheritance hierarchy and prefer composition over inheritance."
+    },
+    "interface_segregation": {
+      "name": "Interface Segregation Principle",
+      "description": "No client should be forced to depend on methods it does not use. Prefer many small, specific interfaces over one large, general-purpose interface.",
+      "indicators": [
+        "classes with many unused or no-op method implementations",
+        "interfaces or abstract base classes with >7 methods",
+        "clients that import a class but only use 1-2 of its methods",
+        "implementing classes that raise NotImplementedError for several inherited methods"
+      ],
+      "recommendation": "Break large interfaces into smaller, role-specific ones. Clients should depend only on the methods they actually use. Use protocols or ABCs with minimal method sets."
+    },
+    "dependency_inversion": {
+      "name": "Dependency Inversion Principle",
+      "description": "High-level modules should not depend on low-level modules; both should depend on abstractions. Abstractions should not depend on details.",
+      "indicators": [
+        "direct instantiation of dependencies inside methods",
+        "importing concrete classes instead of abstract interfaces",
+        "no dependency injection or inversion of control",
+        "high-level business logic directly calling database or file system APIs"
+      ],
+      "recommendation": "Depend on abstractions (protocols, ABCs) rather than concrete implementations. Use dependency injection to provide concrete instances at runtime. Define interfaces at the boundary of each layer."
+    }
+  },
+  "complexity_thresholds": {
+    "max_function_complexity": 10,
+    "max_function_lines": 50,
+    "max_parameters": 5,
+    "max_class_methods": 10,
+    "max_nesting_depth": 4
+  },
+  "naming_conventions": {
+    "function_should_be_verb": true,
+    "class_should_be_noun": true,
+    "boolean_should_be_is_has_can": true
+  },
+  "code_smells": {
+    "long_method": {
+      "description": "Method is too long to understand at a glance",
+      "threshold": "Function exceeds 50 lines or cyclomatic complexity > 10",
+      "recommendation": "Extract sub-methods with descriptive names"
+    },
+    "large_class": {
+      "description": "Class tries to do too much",
+      "threshold": "Class has >10 public methods or >300 lines",
+      "recommendation": "Split into multiple focused classes"
+    },
+    "feature_envy": {
+      "description": "Method uses data from another class more than its own",
+      "threshold": "Method references another object's attributes >3 times",
+      "recommendation": "Move the method to the class whose data it uses"
+    },
+    "data_clumps": {
+      "description": "Same group of variables passed together to multiple functions",
+      "threshold": "3+ parameters appear together in >2 function signatures",
+      "recommendation": "Group into a data class or named tuple"
+    },
+    "primitive_obsession": {
+      "description": "Using primitive types instead of small objects for simple tasks",
+      "threshold": "Multiple related primitives passed together or validated repeatedly",
+      "recommendation": "Create value objects or data classes"
+    }
+  }
+}

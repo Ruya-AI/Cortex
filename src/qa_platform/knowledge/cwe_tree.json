@@ -1,0 +1,351 @@
+{
+  "CWE-20": {
+    "name": "Improper Input Validation",
+    "description": "The product receives input or data but does not validate or incorrectly validates that the input has the properties required to process the data correctly and safely.",
+    "severity_default": "high",
+    "children": ["CWE-89", "CWE-79", "CWE-78", "CWE-22", "CWE-90", "CWE-113", "CWE-601"]
+  },
+  "CWE-89": {
+    "name": "SQL Injection",
+    "parent": "CWE-20",
+    "description": "The product constructs all or part of an SQL command using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the intended SQL command.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "string concatenation near SQL keywords (SELECT, INSERT, UPDATE, DELETE, DROP)",
+      "f-string or format() containing SQL keywords",
+      "user input passed directly to cursor.execute() without parameterization",
+      "raw SQL queries built with % formatting or .format()",
+      "string interpolation in ORM raw/extra queries"
+    ],
+    "remediation": "Use parameterized queries or prepared statements. Use an ORM for database access. Never concatenate or interpolate user input directly into SQL strings. Apply input validation as a defense-in-depth measure."
+  },
+  "CWE-79": {
+    "name": "Improper Neutralization of Input During Web Page Generation (Cross-site Scripting)",
+    "parent": "CWE-20",
+    "description": "The product does not neutralize or incorrectly neutralizes user-controllable input before it is placed in output that is used as a web page served to other users.",
+    "severity_default": "high",
+    "detection_hints": [
+      "innerHTML assignment with user-controlled data",
+      "document.write() with unsanitized input",
+      "Markup.safe() or mark_safe() wrapping user input",
+      "template rendering with autoescape disabled",
+      "dangerouslySetInnerHTML with user-controlled content",
+      "response headers missing Content-Type or X-Content-Type-Options"
+    ],
+    "remediation": "Apply context-sensitive output encoding. Use templating engines with auto-escaping enabled. Implement Content Security Policy (CSP) headers. Validate and sanitize all user input on the server side."
+  },
+  "CWE-78": {
+    "name": "Improper Neutralization of Special Elements used in an OS Command (OS Command Injection)",
+    "parent": "CWE-20",
+    "description": "The product constructs all or part of an OS command using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the intended OS command.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "os.system() with user-controlled arguments",
+      "subprocess.call() or subprocess.Popen() with shell=True and user input",
+      "backtick execution or exec() with external data",
+      "string concatenation in shell command construction",
+      "os.popen() with unsanitized input"
+    ],
+    "remediation": "Avoid calling OS commands with user-supplied input. Use subprocess with shell=False and pass arguments as a list. Apply strict input validation using allowlists. Use language-native libraries instead of shell commands where possible."
+  },
+  "CWE-22": {
+    "name": "Improper Limitation of a Pathname to a Restricted Directory (Path Traversal)",
+    "parent": "CWE-20",
+    "description": "The product uses external input to construct a pathname that is intended to identify a file or directory located underneath a restricted parent directory, but the product does not properly neutralize special elements within the pathname that can cause it to resolve to a location outside of the restricted directory.",
+    "severity_default": "high",
+    "detection_hints": [
+      "os.path.join() with user-supplied path components without validation",
+      "open() called with user-controlled filenames",
+      "file path constructed using string concatenation with user input",
+      "missing check for '../' or '..' in path components",
+      "pathlib operations without resolve() and is_relative_to() checks"
+    ],
+    "remediation": "Canonicalize paths using os.path.realpath() or pathlib.Path.resolve() and verify the result is within the expected base directory. Use allowlists for permitted filenames. Reject input containing path traversal sequences."
+  },
+  "CWE-90": {
+    "name": "Improper Neutralization of Special Elements used in an LDAP Query (LDAP Injection)",
+    "parent": "CWE-20",
+    "description": "The product constructs all or part of an LDAP query using externally-influenced input from an upstream component, but it does not neutralize or incorrectly neutralizes special elements that could modify the intended LDAP query.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "string concatenation in LDAP filter construction",
+      "f-string or format() used to build LDAP search filters",
+      "user input passed directly to ldap.search_s() filter parameter",
+      "unescaped parentheses, asterisks, or backslashes in LDAP queries"
+    ],
+    "remediation": "Use LDAP-specific escaping functions such as ldap3.utils.dn.escape_rdn() or ldap.filter.escape_filter_chars(). Build LDAP filters using parameterized APIs. Validate and sanitize all user input before incorporating it into LDAP queries."
+  },
+  "CWE-113": {
+    "name": "Improper Neutralization of CRLF Sequences in HTTP Headers (HTTP Response Splitting)",
+    "parent": "CWE-20",
+    "description": "The product receives data from an HTTP agent or upstream component and includes the data in an HTTP response header without neutralizing CR (carriage return) and LF (line feed) characters, allowing attackers to inject arbitrary HTTP headers or split the response.",
+    "severity_default": "high",
+    "detection_hints": [
+      "user input placed directly into HTTP response headers",
+      "Set-Cookie values constructed from user input without CRLF filtering",
+      "redirect URLs built from user input without newline validation",
+      "custom header values derived from request parameters"
+    ],
+    "remediation": "Strip or reject CR and LF characters from any data used in HTTP headers. Use framework-provided header-setting methods that perform automatic sanitization. Validate all user input used in header values against an allowlist of safe characters."
+  },
+  "CWE-601": {
+    "name": "URL Redirection to Untrusted Site (Open Redirect)",
+    "parent": "CWE-20",
+    "description": "The web application accepts a user-controlled input that specifies a link to an external site, and uses that link in a redirect without sufficient validation, enabling phishing attacks.",
+    "severity_default": "medium",
+    "detection_hints": [
+      "redirect URL taken from query parameters (e.g., ?next=, ?url=, ?redirect=)",
+      "HTTP 302/301 responses with user-controlled Location header",
+      "url_for() or reverse() combined with user-supplied redirect targets",
+      "missing domain validation on redirect URLs"
+    ],
+    "remediation": "Validate redirect URLs against an allowlist of trusted domains. Use relative URLs for redirects where possible. Reject URLs with different schemes or hosts. Implement a mapping of allowed redirect identifiers instead of passing raw URLs."
+  },
+  "CWE-284": {
+    "name": "Improper Access Control",
+    "description": "The product does not restrict or incorrectly restricts access to a resource from an unauthorized actor.",
+    "severity_default": "high",
+    "children": ["CWE-269", "CWE-287", "CWE-306", "CWE-732", "CWE-862"]
+  },
+  "CWE-269": {
+    "name": "Improper Privilege Management",
+    "parent": "CWE-284",
+    "description": "The product does not properly assign, modify, track, or check privileges for an actor, creating an unintended sphere of control for that actor.",
+    "severity_default": "high",
+    "detection_hints": [
+      "privilege escalation through role assignment without proper checks",
+      "admin functions accessible without role verification",
+      "setuid/setgid usage without dropping privileges after use",
+      "missing principle of least privilege in service accounts",
+      "default admin or superuser roles assigned to new users"
+    ],
+    "remediation": "Implement the principle of least privilege. Verify privilege levels before performing sensitive operations. Use role-based access control (RBAC). Drop elevated privileges as soon as they are no longer needed. Audit privilege assignments regularly."
+  },
+  "CWE-287": {
+    "name": "Improper Authentication",
+    "parent": "CWE-284",
+    "description": "When an actor claims to have a given identity, the product does not prove or insufficiently proves that the claim is correct.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "authentication bypass through direct object access",
+      "missing authentication checks on API endpoints",
+      "weak or custom authentication schemes",
+      "authentication logic that can be skipped with specific input",
+      "session tokens that are predictable or not validated server-side"
+    ],
+    "remediation": "Use well-established authentication frameworks and libraries. Implement multi-factor authentication for sensitive operations. Ensure all endpoints require authentication unless explicitly public. Use strong session management with secure, random tokens."
+  },
+  "CWE-306": {
+    "name": "Missing Authentication for Critical Function",
+    "parent": "CWE-284",
+    "description": "The product does not perform any authentication for functionality that requires a provable user identity or consumes a significant amount of resources.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "API endpoints without @login_required or authentication middleware",
+      "admin or management functions accessible without credentials",
+      "sensitive data endpoints lacking authentication decorators",
+      "internal APIs exposed without authentication on public interfaces",
+      "critical state-changing operations without identity verification"
+    ],
+    "remediation": "Apply authentication to all critical functions. Use authentication middleware or decorators consistently. Implement defense-in-depth with multiple layers of authentication checks. Audit all endpoints to ensure authentication coverage."
+  },
+  "CWE-732": {
+    "name": "Incorrect Permission Assignment for Critical Resource",
+    "parent": "CWE-284",
+    "description": "The product specifies permissions for a security-critical resource in a way that allows that resource to be read or modified by unintended actors.",
+    "severity_default": "high",
+    "detection_hints": [
+      "os.chmod() with overly permissive modes (e.g., 0o777, 0o666)",
+      "world-readable or world-writable file permissions on sensitive files",
+      "configuration files with credentials stored with loose permissions",
+      "temporary files created without restrictive permissions",
+      "umask set to overly permissive values"
+    ],
+    "remediation": "Set restrictive permissions on sensitive files (e.g., 0o600 for secrets). Use the principle of least privilege for file and directory permissions. Set appropriate umask values. Use OS-level access control mechanisms consistently."
+  },
+  "CWE-862": {
+    "name": "Missing Authorization",
+    "parent": "CWE-284",
+    "description": "The product does not perform an authorization check when an actor attempts to access a resource or perform an action.",
+    "severity_default": "high",
+    "detection_hints": [
+      "object access without ownership or permission checks",
+      "API endpoints that accept object IDs without verifying the caller's authorization",
+      "missing @permission_required decorators or authorization middleware",
+      "direct database queries without filtering by the authenticated user's scope",
+      "IDOR (Insecure Direct Object Reference) patterns"
+    ],
+    "remediation": "Implement authorization checks for every access to protected resources. Use attribute-based or role-based access control. Verify that the authenticated user has permission to access the specific resource being requested. Deny access by default."
+  },
+  "CWE-693": {
+    "name": "Protection Mechanism Failure",
+    "description": "The product does not use or incorrectly uses a protection mechanism that provides sufficient defense against directed attacks.",
+    "severity_default": "high",
+    "children": ["CWE-327", "CWE-328", "CWE-330", "CWE-352"]
+  },
+  "CWE-327": {
+    "name": "Use of a Broken or Risky Cryptographic Algorithm",
+    "parent": "CWE-693",
+    "description": "The product uses a broken or risky cryptographic algorithm or protocol that can be compromised by attackers.",
+    "severity_default": "high",
+    "detection_hints": [
+      "use of MD5 or SHA1 for password hashing or security-sensitive purposes",
+      "use of DES, 3DES, RC4, or other deprecated ciphers",
+      "ECB mode usage in block ciphers",
+      "custom or homegrown cryptographic implementations",
+      "use of hashlib.md5() or hashlib.sha1() for security purposes"
+    ],
+    "remediation": "Use modern, well-vetted cryptographic algorithms (AES-256-GCM, ChaCha20-Poly1305). For password hashing, use bcrypt, scrypt, or Argon2. Use TLS 1.2+ for transport security. Rely on established cryptographic libraries rather than custom implementations."
+  },
+  "CWE-328": {
+    "name": "Use of Weak Hash",
+    "parent": "CWE-693",
+    "description": "The product uses an algorithm that produces a hash value without sufficient computational effort, making it vulnerable to brute-force or collision attacks when used for security purposes.",
+    "severity_default": "high",
+    "detection_hints": [
+      "hashlib.md5() or hashlib.sha1() used for password storage",
+      "CRC32 used for integrity verification in security contexts",
+      "unsalted hash functions applied to passwords or secrets",
+      "hash comparison for authentication without key stretching",
+      "simple hash functions used for token generation"
+    ],
+    "remediation": "Use password-specific hashing functions with built-in salting and key stretching (bcrypt, scrypt, Argon2). For integrity checks, use HMAC with SHA-256 or stronger. Never use MD5, SHA1, or CRC32 for security-critical purposes."
+  },
+  "CWE-330": {
+    "name": "Use of Insufficiently Random Values",
+    "parent": "CWE-693",
+    "description": "The product uses insufficiently random numbers or values in a security context that depends on unpredictable numbers.",
+    "severity_default": "high",
+    "detection_hints": [
+      "random.random() or random.randint() used for security tokens",
+      "Math.random() used for session IDs or CSRF tokens",
+      "predictable seed values for random number generators",
+      "time-based seeds for security-sensitive random generation",
+      "uuid1() used where uuid4() should be used for unpredictability"
+    ],
+    "remediation": "Use cryptographically secure random number generators (secrets module in Python, os.urandom(), crypto.getRandomValues() in JavaScript). Never use standard PRNG functions (random module) for security purposes. Use secrets.token_hex() or secrets.token_urlsafe() for tokens."
+  },
+  "CWE-352": {
+    "name": "Cross-Site Request Forgery (CSRF)",
+    "parent": "CWE-693",
+    "description": "The web application does not, or cannot, sufficiently verify whether a well-formed, valid, consistent request was intentionally provided by the user who submitted the request.",
+    "severity_default": "high",
+    "detection_hints": [
+      "state-changing operations using GET requests",
+      "forms without CSRF token fields",
+      "CSRF middleware disabled or exempted for state-changing endpoints",
+      "@csrf_exempt decorator on POST/PUT/DELETE handlers",
+      "missing SameSite attribute on session cookies",
+      "AJAX requests without anti-CSRF headers"
+    ],
+    "remediation": "Implement anti-CSRF tokens in all state-changing forms and requests. Use the SameSite cookie attribute. Verify the Origin and Referer headers. Use framework-provided CSRF protection and avoid disabling it. Require re-authentication for critical operations."
+  },
+  "CWE-664": {
+    "name": "Improper Control of a Resource Through its Lifetime",
+    "description": "The product does not maintain or incorrectly maintains control over a resource throughout its lifetime of creation, use, and release.",
+    "severity_default": "medium",
+    "children": ["CWE-502", "CWE-611", "CWE-434", "CWE-362"]
+  },
+  "CWE-502": {
+    "name": "Deserialization of Untrusted Data",
+    "parent": "CWE-664",
+    "description": "The product deserializes untrusted data without sufficiently verifying that the resulting data will be valid, leading to potential code execution, denial of service, or other unexpected behavior.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "pickle.loads() or pickle.load() with untrusted input",
+      "yaml.load() without Loader=SafeLoader",
+      "marshal.loads() with external data",
+      "shelve.open() on user-supplied files",
+      "jsonpickle.decode() with untrusted data",
+      "eval() or exec() on serialized data"
+    ],
+    "remediation": "Never deserialize data from untrusted sources using unsafe deserializers. Use safe alternatives (json, yaml.safe_load). Implement integrity checks (HMAC) on serialized data. Use allowlists for permitted classes during deserialization. Prefer data-only formats over formats that can encode executable code."
+  },
+  "CWE-611": {
+    "name": "Improper Restriction of XML External Entity Reference (XXE)",
+    "parent": "CWE-664",
+    "description": "The product processes an XML document that can contain XML entities with URIs that resolve to documents outside of the intended sphere of control, causing the product to embed incorrect documents into its output.",
+    "severity_default": "high",
+    "detection_hints": [
+      "xml.etree.ElementTree.parse() with external input without disabling entities",
+      "lxml.etree.parse() without setting resolve_entities=False",
+      "XML parsing without disabling DTD processing",
+      "SAX parser without disabling external entity resolution",
+      "SOAP endpoints processing user-supplied XML"
+    ],
+    "remediation": "Disable external entity resolution and DTD processing in XML parsers. Use defusedxml library in Python. Configure parsers to disallow external entities and parameter entities. Prefer JSON over XML where possible. Validate and sanitize XML input."
+  },
+  "CWE-434": {
+    "name": "Unrestricted Upload of File with Dangerous Type",
+    "parent": "CWE-664",
+    "description": "The product allows the upload of files without properly validating the file type, which can lead to execution of arbitrary code on the server or client.",
+    "severity_default": "critical",
+    "detection_hints": [
+      "file upload handlers without file type validation",
+      "file extension checks that rely only on user-supplied filenames",
+      "uploaded files stored in web-accessible directories with execute permissions",
+      "missing Content-Type validation on file uploads",
+      "file type checks using only MIME type from the request (easily spoofed)"
+    ],
+    "remediation": "Validate file types using content inspection (magic bytes), not just file extensions or MIME types. Store uploaded files outside the web root. Use a new random filename for stored files. Set restrictive permissions on upload directories. Implement file size limits and scan for malware."
+  },
+  "CWE-362": {
+    "name": "Concurrent Execution Using Shared Resource with Improper Synchronization (Race Condition)",
+    "parent": "CWE-664",
+    "description": "The product contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence.",
+    "severity_default": "medium",
+    "detection_hints": [
+      "check-then-act patterns without locking (TOCTOU)",
+      "shared mutable state accessed from multiple threads without synchronization",
+      "file operations with race conditions between existence check and access",
+      "database read-modify-write sequences without transactions or locks",
+      "signal handlers that modify shared state"
+    ],
+    "remediation": "Use proper synchronization primitives (locks, mutexes, semaphores). Implement atomic operations where possible. Use database transactions with appropriate isolation levels. Avoid TOCTOU patterns by using atomic file operations (e.g., os.open with O_CREAT|O_EXCL). Apply the principle of least shared state."
+  },
+  "CWE-200": {
+    "name": "Exposure of Sensitive Information to an Unauthorized Actor",
+    "description": "The product exposes sensitive information to an actor that is not explicitly authorized to have access to that information.",
+    "severity_default": "medium",
+    "children": [],
+    "detection_hints": [
+      "stack traces or debug information exposed in production error responses",
+      "sensitive data (passwords, tokens, keys) written to log files",
+      "verbose error messages revealing internal system details",
+      "API responses including more data fields than necessary",
+      "comments in source code containing credentials or internal URLs",
+      "directory listings enabled on web servers"
+    ],
+    "remediation": "Implement proper error handling that shows generic messages to users while logging details internally. Remove debug information from production deployments. Apply the principle of least information in API responses. Review logs to ensure sensitive data is not recorded. Use data classification and handle each level appropriately."
+  },
+  "CWE-798": {
+    "name": "Use of Hard-coded Credentials",
+    "description": "The product contains hard-coded credentials, such as a password or cryptographic key, which it uses for its own inbound authentication, outbound communication, or encryption of internal data.",
+    "severity_default": "critical",
+    "children": [],
+    "detection_hints": [
+      "string literals that appear to be passwords, API keys, or tokens",
+      "variables named password, secret, api_key, or token assigned string constants",
+      "base64-encoded strings in source code that decode to credentials",
+      "connection strings with embedded passwords",
+      "hardcoded JWT secrets or encryption keys",
+      "default credentials in configuration initialization code"
+    ],
+    "remediation": "Store credentials in environment variables, secrets managers (AWS Secrets Manager, HashiCorp Vault), or encrypted configuration files. Use credential rotation policies. Implement key management systems. Never commit credentials to version control. Use .env files excluded from version control for local development."
+  },
+  "CWE-918": {
+    "name": "Server-Side Request Forgery (SSRF)",
+    "description": "The web server receives a URL or similar request from an upstream component and retrieves the contents of this URL, but it does not sufficiently ensure that the request is being sent to the expected destination.",
+    "severity_default": "high",
+    "children": [],
+    "detection_hints": [
+      "user-supplied URLs passed to requests.get(), urllib.urlopen(), or similar",
+      "URL parameters used to fetch remote resources without validation",
+      "internal service URLs constructed from user input",
+      "image/file download features that accept arbitrary URLs",
+      "webhook URLs provided by users without domain restrictions",
+      "DNS rebinding potential in URL validation"
+    ],
+    "remediation": "Validate and sanitize all user-supplied URLs. Implement allowlists for permitted domains and IP ranges. Block requests to internal/private IP ranges (10.x, 172.16-31.x, 192.168.x, 127.x, ::1). Use a dedicated egress proxy for outbound requests. Disable HTTP redirects or validate each redirect destination."
+  }
+}
