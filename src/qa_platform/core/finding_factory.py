@@ -46,6 +46,7 @@ class FindingFactory:
             end_line=end_line,
             title=title,
             explanation=explanation,
+            evidence=Evidence(tool_calls=[f"{tool_name} check on {file}"]),
             recommendation=recommendation,
             suppression_key=suppression_key,
             first_seen=now_iso,

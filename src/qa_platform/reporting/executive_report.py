@@ -95,7 +95,7 @@ class ExecutiveReportGenerator:
 
         action_items = self._build_action_items(curated)
         category_summary = self._build_category_summary(curated)
-        risk_level = self._compute_risk_level(curated)
+        risk_level = self._compute_risk_level(full_report_data.get("findings", []))
 
         # Noise reduction stats
         total = excluded_count + len(curated)
@@ -209,11 +209,12 @@ class ExecutiveReportGenerator:
                 reason_counts["low_severity"] = reason_counts.get("low_severity", 0) + 1
                 continue
 
-            # Exclude no-evidence findings
+            # Exclude no-evidence findings — but a named source tool IS evidence
+            has_source = bool(f.get("source", ""))
             evidence = f.get("evidence", {})
             tool_calls = evidence.get("tool_calls", []) if isinstance(evidence, dict) else []
             code_refs = evidence.get("code_references", []) if isinstance(evidence, dict) else []
-            if not tool_calls and not code_refs:
+            if not tool_calls and not code_refs and not has_source:
                 excluded += 1
                 reason_counts["no_evidence"] = reason_counts.get("no_evidence", 0) + 1
                 continue
