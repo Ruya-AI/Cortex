@@ -250,7 +250,7 @@ class ScanOrchestrator:
                     exec_result = self._executive_report_generator.generate(
                         full_report_data=report_result["report_data"],
                         output_dir=output_dir,
-                        file_stem=f"{file_stem}-executive",
+                        file_stem=file_stem,
                         formats=request.report_formats,
                     )
                     exec_json_path = exec_result.get("json_path")

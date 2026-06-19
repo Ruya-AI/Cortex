@@ -261,6 +261,125 @@ Tools are auto-discovered at scan start. Missing tools are skipped gracefully �
 
 ---
 
+## Detailed Task Breakdown by Tier
+
+### Tier 1 Tasks (Per File, No LLM)
+
+Each Tier 1 tool performs these tasks on every applicable file:
+
+| Step | Task | Description |
+|---|---|---|
+| 1 | Availability check | Verify tool binary is installed (`tool --version`) |
+| 2 | Applicability check | Match file extension to tool's supported types |
+| 3 | Execution | Run tool as subprocess with timeout (60s default) |
+| 4 | Output parsing | Parse tool's JSON/text output into structured findings |
+| 5 | Finding creation | Create Finding objects via FindingFactory with severity, category, evidence |
+| 6 | Line validation | Clamp reported line numbers to actual file length |
+| 7 | Error handling | On any failure, return empty list (never crash the pipeline) |
+
+### Tier 2 Tasks (Per File, 3 Agents in Parallel)
+
+Each Tier 2 agent performs these tasks on every high-risk file:
+
+| Step | Task | Description |
+|---|---|---|
+| 1 | Prompt loading | Load system prompt from `prompts/{agent}_agent.txt` |
+| 2 | Memory loading | Load semantic memory (SAST rules, CWE tree, conventions, design principles) |
+| 3 | Context building | Assemble: file content + diff + Tier 1 findings for this file |
+| 4 | **Pass 1 — SCAN** | Read code and identify candidate issues based on patterns and context |
+| 5 | **Pass 2 — INVESTIGATE** | For each candidate, gather evidence via tool calls: `read_file` (open imported modules, callers), `grep` (find usage patterns), `expand_context` (surrounding code), `list_directory` (project structure) |
+| 6 | **Pass 3 — VERIFY** | Challenge each surviving candidate: "Would a senior engineer flag this? Is there context that makes this intentional?" Suppress unsupported candidates with documented reasoning. |
+| 7 | Output parsing | Parse LLM's structured JSON response into Finding objects |
+| 8 | Result assembly | Return AgentResult with findings, tool call log, tokens, cost |
+
+**Agent-specific tasks:**
+
+| Agent | Specific Tasks Performed |
+|---|---|
+| **Correctness** | Trace execution paths step-by-step. Check null/undefined handling at every dereference. Verify error path cleanup (resources, connections). Detect off-by-one in loops and array access. Identify race conditions in shared mutable state. Verify algorithm correctness against intent. Check edge cases (empty input, max values, negative numbers). |
+| **Security** | Receive SAST findings (bandit, semgrep, gitleaks) as primary input. For each SAST finding: trace taint path from source (user input) through transformations to sink (SQL, shell, file). Check if sanitization exists AND is sufficient for the specific attack vector. Classify confirmed vulnerabilities by CWE using taxonomy tree. Generate remediation steps from SAST rules knowledge. **Fail-open: if LLM fails, ALL SAST findings retained unfiltered with validation_status=UNVALIDATED.** |
+| **Design** | Evaluate function/class structure against SOLID principles. Check parameter count (>5 = flag), method count (>10 = flag), nesting depth (>4 = flag), cyclomatic complexity (>10 = flag). Assess naming clarity (function=verb, class=noun, boolean=is/has/can). Check for tight coupling (import count, dependency directions). Verify test adequacy (corresponding test file exists, meaningful coverage). Identify documentation gaps on public APIs. Each suggestion includes: WHAT to change, WHY it improves the code, concrete EXAMPLE. |
+
+### Tier 3 Tasks (Multi-File, Conditional)
+
+The Cross-File Agent performs these tasks only during audits or multi-module PRs:
+
+| Step | Task | Description |
+|---|---|---|
+| 1 | Module detection | Identify distinct modules from file paths (controllers, services, handlers) |
+| 2 | File grouping | Group related files by module (e.g., all files in `src/api/`) |
+| 3 | Pattern extraction | For each file in group, extract: validation strategy, auth mechanism, error handling, response format, naming conventions |
+| 4 | Dominant pattern identification | Determine what the majority of files do for each concern |
+| 5 | Deviation detection | Find files that deviate from the dominant pattern |
+| 6 | Intentionality assessment | Determine if deviation is intentional (documented, different purpose) or oversight |
+| 7 | Systemic finding production | If same issue in N files, produce ONE systemic finding with all affected files listed |
+| 8 | Cross-file evidence | Every finding includes references to multiple files showing the inconsistency |
+
+**What it detects:**
+- Missing authentication on some endpoints when others have it
+- Inconsistent input validation patterns across controllers
+- Interface mismatches (function signature changed but callers not updated)
+- Inconsistent error handling strategies across similar components
+- Systemic code smells repeated across the codebase
+
+### Validation Layer Tasks (All Findings, Sequential)
+
+The Validator Agent performs these tasks on ALL findings from Tiers 1-3:
+
+| Step | Task | Description |
+|---|---|---|
+| 1 | Batch preparation | Group findings into batches of 15 for efficient LLM processing |
+| 2 | Independent code reading | Re-read the code referenced by each finding (independent of detection agent's reading) |
+| 3 | Adversarial challenge | For each finding, construct the strongest argument that the finding is WRONG |
+| 4 | Evidence verification | Check if the evidence cited in the finding (tool calls, code references) is accurate |
+| 5 | Context checking | Look for surrounding context the detection agent may have missed (guards, checks, intentional patterns) |
+| 6 | Verdict assignment | Assign: **confirmed** (independently verified), **likely** (plausible, cannot fully verify), **uncertain** (ambiguous — RETAIN), **suppressed** (finding is wrong, documented WHY) |
+| 7 | Reasoning documentation | Document specific reasoning for every verdict (required, not optional) |
+| 8 | Semantic deduplication | Detect when two agents describe the same issue with different wording — merge findings |
+| 9 | Fail-open enforcement | If batch LLM call fails, ALL findings in that batch get validation_status=UNVALIDATED (retained, NOT suppressed) |
+
+### Post-Processing Pipeline (9 Steps, Deterministic, Fixed Order)
+
+Executed AFTER all agents complete. No LLM. Algorithmic. Order is invariant — never reordered.
+
+| Step | Task | What It Does |
+|---|---|---|
+| 1 | **Line Validation** | Read each referenced file, count lines via `splitlines()`, clamp `start_line` and `end_line` to `[1, line_count]`. Cache file line counts to avoid re-reading. |
+| 2 | **Deduplication** | Group findings by file. Within each group, check pairs: if lines overlap within ±3 AND (suppression_key matches OR title word overlap >80%) → merge. Keep finding with higher confidence. Merge evidence from duplicate into survivor. |
+| 3 | **Diff Classification** | Build map of file → added/modified line numbers from ChangeSet. For each finding: if line range overlaps added lines → `INTRODUCED`. If overlaps any changed lines → `MODIFIED`. Otherwise → `PRE_EXISTING`. Full scans → `UNCLASSIFIED`. |
+| 4 | **Author Attribution** | For each finding without an author: (1) Pre-commit trigger → git config user.name/email. (2) PR author + INTRODUCED classification → use PR author. (3) Otherwise → git blame on finding's line range. (4) Blame failure → configurable default author. Git config lookup is silent (no warning log). |
+| 5 | **Snippet Extraction** | Read file, extract `start_line - 3` to `end_line + 3` lines. Format as `{line_num:4d} | {line_content}`. Mark flagged lines with ` ◄── FLAGGED`. Strip control characters from each line individually (split first, then clean — never clean whole file before splitting). |
+| 6 | **Suppression** | Match each finding's `suppression_key` against configured suppression rules. Check `file_scope` (if set, finding's file must match glob). Check `expires` (skip expired rules). Matching findings → set `lifecycle_state=SUPPRESSED`, move to suppressed list. |
+| 7 | **Clustering** | Group findings by `suppression_key` prefix (before last `-` segment). For groups with 2+ findings, create FindingCluster with cluster_id, root_cause, finding_ids, count. Update each finding's `root_cause_cluster` and `related_findings` fields. |
+| 8 | **Ranking** | Sort findings by: severity descending (CRITICAL first) → confidence descending (CONFIRMED first) → classification (INTRODUCED → MODIFIED → PRE_EXISTING → UNCLASSIFIED) → file path alphabetically. |
+| 9 | **ID Assignment** | Assign human-readable IDs: `F-{scan_id_short}-{sequence:03d}` (e.g., `F-abc123-001`). |
+
+### Quality Gate Assessment
+
+| Task | What It Does |
+|---|---|
+| Severity counting | Count findings by severity, filtered by minimum confidence threshold (configurable: confirmed, likely, or uncertain) |
+| Threshold evaluation | Compare critical count against `max_critical` (default 0) and high count against `max_high` (default 0) |
+| Mode application | **Shadow**: always PASS, log what would have happened. **Advisory**: return ADVISORY on breach (warns, doesn't block CI). **Enforced**: return FAIL on breach (exit code 1, blocks merge). |
+| Override checking | Check for valid override (approved_by, reason, not expired) that would change FAIL to PASS |
+
+### Report Generation
+
+| Report | Tasks Performed |
+|---|---|
+| **Full Report (JSON + PDF)** | Build 11-section data structure → Serialize findings (convert IntEnum values to string names) → Write JSON with indent=2 → Render HTML template with severity-colored finding cards, meta tables, evidence sections, code snippets in `<pre>` tags, recommendation blocks → Sanitize control characters via `_e()` → Convert HTML to PDF via WeasyPrint (fallback to .html if unavailable) |
+| **Executive Report (JSON + PDF)** | Curate findings (filter low-confidence, pre-existing non-critical, low/info severity, no-evidence) → Sort by severity → Build action items table (full text, no truncation) → Compute by-category summary (must_fix, should_fix, consider) → Calculate noise reduction stats (excluded count, exclusion reasons) → Determine risk level (CRITICAL/HIGH/MEDIUM/CLEAN) → Render HTML with risk badge, stats cards, tables with word-wrap → Convert to PDF |
+
+### Integration Dispatch
+
+| Integration | Tasks Performed |
+|---|---|
+| **GitHub** | Extract owner/repo from remote URL → POST summary comment to PR with finding count, severity distribution, gate status → POST inline review comments on specific file:line for top 15 findings (severity badge, explanation, recommendation) → POST commit status check (success/failure reflecting gate result) |
+| **Linear** | Create parent issue: "QA Scan: {repo} ({count} findings)" → For each finding up to `max_issues_per_scan` (default 20): create sub-issue with title `[{severity}] {title}`, description with file:line + explanation + recommendation → Attempt developer assignment by email match via GraphQL API |
+| **Slack** | Build summary message: finding count, severity distribution (critical/high/medium/low), quality gate status → POST to configured webhook URL → Handle errors gracefully (notification is non-critical) |
+
+---
+
 ## Installation
 
 ### Requirements
