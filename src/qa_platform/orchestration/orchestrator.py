@@ -243,7 +243,7 @@ class ScanOrchestrator:
             if self._executive_report_generator and report_result and report_result.get("report_data"):
                 try:
                     exec_result = self._executive_report_generator.generate(
-                        full_report_data=report_result["report_data"],
+                        full_report=report_result["report_data"],
                         output_dir=output_dir,
                         file_stem=file_stem,
                         formats=request.report_formats,
