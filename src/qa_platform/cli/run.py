@@ -318,12 +318,12 @@ def _build_agent_infrastructure(request, cost_tracker):
     try:
         from qa_platform.infrastructure.llm_client import AnthropicLLMClient
         llm_client = AnthropicLLMClient(
-            primary_model="claude-sonnet-4-20250514",
-            fallback_models=["claude-haiku-4-20250514"],
+            primary_model="claude-opus-4-6",
+            fallback_models=["claude-sonnet-4-6"],
         )
         validator_llm_client = AnthropicLLMClient(
-            primary_model="claude-opus-4-20250514",
-            fallback_models=["claude-sonnet-4-20250514"],
+            primary_model="claude-opus-4-6",
+            fallback_models=["claude-sonnet-4-6"],
         )
     except Exception as e:
         logging.getLogger(__name__).warning("LLM client init failed: %s", e)

@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Cost per million tokens (approximate)
 MODEL_COSTS = {
+    "claude-opus-4-6": {"input": 15.0, "output": 75.0},
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
     "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
     "claude-opus-4-20250514": {"input": 15.0, "output": 75.0},
     "claude-haiku-4-20250514": {"input": 0.80, "output": 4.0},
@@ -79,7 +81,20 @@ class AnthropicLLMClient(LLMClient):
     def _get_client(self):
         if self._client is None:
             import anthropic
-            self._client = anthropic.Anthropic(max_retries=0, timeout=120.0)
+            import os
+            use_vertex = os.environ.get("CLAUDE_CODE_USE_VERTEX", "")
+            project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "")
+            region = os.environ.get("CLOUD_ML_REGION", "global")
+            if use_vertex and project_id:
+                self._client = anthropic.AnthropicVertex(
+                    project_id=project_id,
+                    region=region,
+                    max_retries=0,
+                )
+                logger.info("Using Vertex AI (project=%s, region=%s)", project_id, region)
+            else:
+                self._client = anthropic.Anthropic(max_retries=0, timeout=120.0)
+                logger.info("Using direct Anthropic API")
         return self._client
 
     @property
