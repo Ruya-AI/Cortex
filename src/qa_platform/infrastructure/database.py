@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +11,10 @@ _DEFAULT_DB_PATH = ".qa-platform.db"
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     """Open (or create) a SQLite database and return the connection."""
     path = db_path or _DEFAULT_DB_PATH
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

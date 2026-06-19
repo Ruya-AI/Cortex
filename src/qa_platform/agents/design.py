@@ -11,7 +11,6 @@ from qa_platform.core.finding import (
     Evidence,
     FindingCategory,
     Severity,
-    Confidence,
 )
 from qa_platform.core.finding_factory import FindingFactory
 from qa_platform.core.schemas import (
@@ -225,8 +224,8 @@ class DesignAgent(ReviewAgent):
     def _build_user_message(self, context: FileReviewContext) -> str:
         parts = [f"## File Under Review: {context.file_path}\n"]
         if context.diff_content:
-            parts.append(f"## Diff\n```\n{context.diff_content[:3000]}\n```\n")
-        parts.append(f"## File Content\n```\n{context.file_content[:8000]}\n```\n")
+            parts.append(f"## Diff\n<CODE_FOR_REVIEW>\n{context.diff_content[:3000]}\n</CODE_FOR_REVIEW>\n")
+        parts.append(f"## File Content\n<CODE_FOR_REVIEW>\n{context.file_content[:8000]}\n</CODE_FOR_REVIEW>\n")
 
         # Design agents look at tier1 findings for complexity/style signals
         if context.tier1_findings:

@@ -12,7 +12,6 @@ from qa_platform.core.finding import (
     Finding,
     FindingCategory,
     Severity,
-    Confidence,
     ValidationStatus,
 )
 from qa_platform.core.finding_factory import FindingFactory
@@ -141,6 +140,33 @@ class SecurityAgent(ReviewAgent):
                 cost = response.cost_usd
 
             findings = self._parse_findings(content, context.file_path)
+
+            # Fail-open: if LLM produced zero findings but we had SAST input,
+            # retain the SAST findings as UNVALIDATED.
+            if not findings:
+                sast_findings = self._extract_sast_findings(context)
+                if sast_findings:
+                    logger.warning(
+                        "Security agent produced zero findings despite %d SAST inputs "
+                        "— retaining SAST findings (fail-open)",
+                        len(sast_findings),
+                    )
+                    for f in sast_findings:
+                        f.validation_status = ValidationStatus.UNVALIDATED
+                        f.validation_reasoning = (
+                            "Security agent produced no output — SAST finding retained (fail-open)"
+                        )
+                    return AgentResult(
+                        agent_name=self.name,
+                        findings=sast_findings,
+                        tool_calls=tool_calls_log,
+                        model_used=model,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                        cost_usd=cost,
+                        errors=["Fail-open: LLM produced no findings despite SAST inputs"],
+                        duration_seconds=round(time.time() - start, 2),
+                    )
 
             return AgentResult(
                 agent_name=self.name,
@@ -279,8 +305,8 @@ class SecurityAgent(ReviewAgent):
                 )
 
         if context.diff_content:
-            parts.append(f"## Diff\n```\n{context.diff_content[:3000]}\n```\n")
-        parts.append(f"## File Content\n```\n{context.file_content[:8000]}\n```\n")
+            parts.append(f"## Diff\n<CODE_FOR_REVIEW>\n{context.diff_content[:3000]}\n</CODE_FOR_REVIEW>\n")
+        parts.append(f"## File Content\n<CODE_FOR_REVIEW>\n{context.file_content[:8000]}\n</CODE_FOR_REVIEW>\n")
 
         for mem in context.semantic_memory:
             parts.append(f"\n## Knowledge: {mem.name}\n{mem.content[:2000]}\n")

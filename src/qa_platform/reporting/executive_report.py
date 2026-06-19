@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from qa_platform.core.text_sanitizer import sanitize
 
 logger = logging.getLogger(__name__)
 
@@ -324,13 +323,13 @@ class ExecutiveReportGenerator:
         parts: list[str] = []
 
         # -- HTML head + CSS -----------------------------------------------
-        parts.append(f"""<!DOCTYPE html>
+        parts.append("""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>QA Executive Report</title>
 <style>
-  body {{
+  body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                  "Helvetica Neue", Arial, sans-serif;
     max-width: 960px;
@@ -339,11 +338,11 @@ class ExecutiveReportGenerator:
     color: #212529;
     font-size: 13px;
     line-height: 1.5;
-  }}
-  h1 {{ color: #1a1a2e; margin-bottom: 0.25rem; }}
-  h2 {{ color: #1a1a2e; margin-top: 1.5rem; }}
-  .subtitle {{ color: #666; font-size: 12px; margin-bottom: 1.5rem; }}
-  .risk {{
+  }
+  h1 { color: #1a1a2e; margin-bottom: 0.25rem; }
+  h2 { color: #1a1a2e; margin-top: 1.5rem; }
+  .subtitle { color: #666; font-size: 12px; margin-bottom: 1.5rem; }
+  .risk {
     display: inline-block;
     color: #fff;
     padding: 0.5rem 1.2rem;
@@ -351,35 +350,35 @@ class ExecutiveReportGenerator:
     font-weight: 700;
     font-size: 1.1rem;
     margin: 0.5rem 0 1rem 0;
-  }}
-  .stats {{
+  }
+  .stats {
     display: flex;
     flex-direction: row;
     gap: 0.75rem;
     margin: 1rem 0;
     flex-wrap: wrap;
-  }}
-  .stat {{
+  }
+  .stat {
     border: 1px solid #dee2e6;
     border-radius: 6px;
     padding: 0.6rem 1rem;
     text-align: center;
     min-width: 90px;
     background: #fff;
-  }}
-  .stat .num {{
+  }
+  .stat .num {
     font-size: 22px;
     font-weight: 700;
     display: block;
-  }}
-  .stat .lbl {{
+  }
+  .stat .lbl {
     font-size: 10px;
     text-transform: uppercase;
     color: #666;
     display: block;
     margin-top: 2px;
-  }}
-  .noise-badge {{
+  }
+  .noise-badge {
     display: inline-block;
     background: #28a745;
     color: #fff;
@@ -387,57 +386,57 @@ class ExecutiveReportGenerator:
     border-radius: 3px;
     font-size: 11px;
     font-weight: 600;
-  }}
-  .severity-badge {{
+  }
+  .severity-badge {
     display: inline-block;
     color: #fff;
     padding: 0.15rem 0.45rem;
     border-radius: 3px;
     font-size: 0.8rem;
     font-weight: 600;
-  }}
-  .action-table {{
+  }
+  .action-table {
     width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
     margin-bottom: 1.5rem;
-  }}
-  .action-table th, .action-table td {{
+  }
+  .action-table th, .action-table td {
     padding: 0.4rem 0.5rem;
     border: 1px solid #dee2e6;
     text-align: left;
     word-wrap: break-word;
     overflow-wrap: break-word;
-  }}
-  .action-table thead th {{
+  }
+  .action-table thead th {
     background: #e9ecef;
     font-weight: 600;
     font-size: 11px;
     text-transform: uppercase;
-  }}
-  .action-table tbody tr:nth-child(even) {{ background: #f8f9fa; }}
-  .meta-table {{
+  }
+  .action-table tbody tr:nth-child(even) { background: #f8f9fa; }
+  .meta-table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 1.5rem;
-  }}
-  .meta-table th, .meta-table td {{
+  }
+  .meta-table th, .meta-table td {
     padding: 0.4rem 0.6rem;
     border: 1px solid #dee2e6;
     text-align: left;
-  }}
-  .meta-table thead th {{
+  }
+  .meta-table thead th {
     background: #e9ecef;
     font-weight: 600;
-  }}
-  .meta-table tbody tr:nth-child(even) {{ background: #f8f9fa; }}
-  .footer {{
+  }
+  .meta-table tbody tr:nth-child(even) { background: #f8f9fa; }
+  .footer {
     margin-top: 2rem;
     padding-top: 0.75rem;
     border-top: 1px solid #dee2e6;
     color: #888;
     font-size: 11px;
-  }}
+  }
 </style>
 </head>
 <body>

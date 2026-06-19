@@ -57,7 +57,11 @@ class SnippetExtractor:
         if file_rel in cache:
             return cache[file_rel]
 
-        full_path = repo_path / file_rel
+        full_path = (repo_path / file_rel).resolve()
+        if not full_path.is_relative_to(repo_path.resolve()):
+            result = None
+            cache[file_rel] = result
+            return result
         try:
             text = full_path.read_text(encoding="utf-8", errors="replace")
             result = text.splitlines()

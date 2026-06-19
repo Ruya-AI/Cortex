@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from qa_platform.core.finding import Finding
 
@@ -42,7 +41,7 @@ class ChangeSet:
     """Aggregated set of file changes for a scan."""
 
     changed_files: list[FileChange] = field(default_factory=list)
-    modules_detected: set[str] = field(default_factory=set)
+    modules_detected: list[str] = field(default_factory=list)
     is_full_scan: bool = False
     lines_added: int = 0
     lines_deleted: int = 0

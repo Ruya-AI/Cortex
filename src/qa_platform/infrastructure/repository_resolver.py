@@ -45,22 +45,26 @@ class RepositoryResolver:
 
     def _clone_remote(self, request: ScanRequest) -> RepositoryContext:
         target = Path(tempfile.mkdtemp(prefix="qa-platform-clone-"))
-        result = GitOperations.clone_repo(
-            request.repo,
-            branch=request.branch,
-            target_dir=target,
-        )
-        if result is None:
-            shutil.rmtree(target, ignore_errors=True)
-            raise ValueError(f"Failed to clone: {request.repo}")
+        try:
+            result = GitOperations.clone_repo(
+                request.repo,
+                branch=request.branch,
+                target_dir=target,
+            )
+            if result is None:
+                shutil.rmtree(target, ignore_errors=True)
+                raise ValueError(f"Failed to clone: {request.repo}")
 
-        return RepositoryContext(
-            local_path=target,
-            branch=result.get("branch", ""),
-            commit_sha=result.get("commit_sha", ""),
-            remote_url=request.repo,
-            is_temporary=True,
-        )
+            return RepositoryContext(
+                local_path=target,
+                branch=result.get("branch", ""),
+                commit_sha=result.get("commit_sha", ""),
+                remote_url=request.repo,
+                is_temporary=True,
+            )
+        except Exception:
+            shutil.rmtree(target, ignore_errors=True)
+            raise
 
     def cleanup(self, context: RepositoryContext) -> None:
         """Remove temporary clone directory if applicable."""

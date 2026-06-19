@@ -67,7 +67,6 @@ class SQLiteScanRepository:
                 scan_data.get("config_hash"),
             ),
         )
-        conn.commit()
 
     # ------------------------------------------------------------------
     # Read

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 
 import click
 
@@ -94,7 +93,15 @@ def main(
         click.echo(f"  {msg}")
 
     # Execute scan
-    result = orchestrator.scan(request, progress=show_progress)
+    try:
+        result = orchestrator.scan(request, progress=show_progress)
+    finally:
+        # Ensure the database connection is closed
+        if orchestrator._db_conn is not None:
+            try:
+                orchestrator._db_conn.close()
+            except Exception:
+                pass
 
     # Display results
     click.echo()

@@ -25,9 +25,9 @@ class FindingManager:
     4. Author attribution
     5. Snippet extraction
     6. Suppression
-    7. Clustering
-    8. Ranking
-    9. ID assignment
+    7. Ranking
+    8. ID assignment
+    9. Clustering (requires IDs to exist)
     """
 
     def __init__(
@@ -77,16 +77,16 @@ class FindingManager:
         # 6. Apply suppressions.
         active, suppressed = self._suppression_applicator.apply(findings, config)
 
-        # 7. Cluster related findings.
-        clusters = self._clusterer.cluster(active)
-
-        # 8. Rank active findings by priority.
+        # 7. Rank active findings by priority.
         active = self._ranker.rank(active)
 
-        # 9. Assign human-readable IDs.
+        # 8. Assign human-readable IDs (must precede clustering).
         short_id = scan_id[:8] if scan_id else "000"
         for i, f in enumerate(active, 1):
             f.id = f"F-{short_id}-{i:03d}"
+
+        # 9. Cluster related findings (references f.id).
+        clusters = self._clusterer.cluster(active)
 
         return ProcessedFindings(
             active_findings=active,

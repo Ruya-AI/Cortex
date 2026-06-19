@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import random
 import time
 from enum import Enum
 
@@ -78,7 +79,7 @@ class AnthropicLLMClient(LLMClient):
     def _get_client(self):
         if self._client is None:
             import anthropic
-            self._client = anthropic.Anthropic()
+            self._client = anthropic.Anthropic(max_retries=0, timeout=120.0)
         return self._client
 
     @property
@@ -137,7 +138,8 @@ class AnthropicLLMClient(LLMClient):
 
     def _try_model(self, model: str, system_prompt: str, user_message: str,
                    output_schema: dict | None) -> LLMResponse:
-        backoff_delays = [1.0, 2.0, 4.0]
+        import anthropic
+
         last_error = ""
 
         for attempt in range(self._max_retries):
@@ -201,6 +203,26 @@ class AnthropicLLMClient(LLMClient):
                     success=True,
                 )
 
+            except anthropic.AuthenticationError as e:
+                # Permanent error -- don't retry
+                logger.error("Authentication failed: %s", e)
+                return LLMResponse(success=False, error=f"Authentication failed: {e}", model=model)
+            except anthropic.BadRequestError as e:
+                # Permanent error -- don't retry
+                logger.error("Bad request: %s", e)
+                return LLMResponse(success=False, error=f"Bad request: {e}", model=model)
+            except (anthropic.RateLimitError, anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
+                last_error = str(e)
+                logger.debug("LLM call attempt %d/%d (transient): %s", attempt + 1, self._max_retries, last_error)
+
+                # Log audit for failure
+                if self._audit_logger_fn:
+                    prompt_hash = hashlib.sha256((system_prompt + user_message).encode()).hexdigest()
+                    self._audit_logger_fn(model, prompt_hash, 0, 0, 0.0, 0, f"error: {last_error[:100]}")
+
+                if attempt < self._max_retries - 1:
+                    delay = min(1.0 * (2 ** attempt), 8.0) + random.uniform(0, 0.5)
+                    time.sleep(delay)
             except Exception as e:
                 last_error = str(e)
                 logger.debug("LLM call attempt %d/%d failed: %s", attempt + 1, self._max_retries, last_error)
@@ -211,7 +233,7 @@ class AnthropicLLMClient(LLMClient):
                     self._audit_logger_fn(model, prompt_hash, 0, 0, 0.0, 0, f"error: {last_error[:100]}")
 
                 if attempt < self._max_retries - 1:
-                    delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]
+                    delay = min(1.0 * (2 ** attempt), 8.0) + random.uniform(0, 0.5)
                     time.sleep(delay)
 
         return LLMResponse(success=False, error=last_error, model=model)

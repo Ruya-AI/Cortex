@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from qa_platform.core.schemas import RiskAssessment, Tier1RunResult
 

@@ -64,6 +64,10 @@ class FindingDeduplicator:
                     for k, v in duplicate.evidence.metrics.items():
                         survivor.evidence.metrics.setdefault(k, v)
 
+                    # If finding[i] was merged away, stop comparing it.
+                    if i in merged_away:
+                        break
+
             for idx, f in enumerate(group):
                 if idx not in merged_away:
                     result.append(f)

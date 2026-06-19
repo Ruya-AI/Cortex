@@ -4,7 +4,7 @@ import logging
 import re
 from pathlib import Path
 
-from qa_platform.core.finding import Confidence, Finding, FindingCategory, Severity
+from qa_platform.core.finding import Finding, FindingCategory, Severity
 from qa_platform.core.finding_factory import FindingFactory
 from qa_platform.tools.base import Tier1Tool
 

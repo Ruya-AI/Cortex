@@ -3,15 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from qa_platform.core.finding import (
-    AuthorAttribution,
-    Classification,
     Confidence,
     Evidence,
     Finding,
     FindingCategory,
-    LifecycleState,
     Severity,
-    ValidationStatus,
 )
 
 

@@ -166,11 +166,13 @@ class ChangeDetector:
         return file_diffs
 
     @staticmethod
-    def _detect_modules(paths: list[str]) -> set[str]:
+    def _detect_modules(paths: list[str]) -> list[str]:
         """Extract top-level directory names from file paths as module names."""
-        modules: set[str] = set()
+        seen: set[str] = set()
+        modules: list[str] = []
         for path in paths:
             parts = path.split("/")
-            if len(parts) > 1:
-                modules.add(parts[0])
+            if len(parts) > 1 and parts[0] not in seen:
+                seen.add(parts[0])
+                modules.append(parts[0])
         return modules

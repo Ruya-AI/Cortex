@@ -11,7 +11,6 @@ from qa_platform.core.finding import (
     Evidence,
     FindingCategory,
     Severity,
-    Confidence,
 )
 from qa_platform.core.finding_factory import FindingFactory
 from qa_platform.core.schemas import (
@@ -258,10 +257,10 @@ class CrossFileAgent(ReviewAgent):
             parts.append(f"### {file_ctx.file_path}\n")
             if file_ctx.diff_content:
                 parts.append(
-                    f"#### Diff\n```\n{file_ctx.diff_content[:2000]}\n```\n"
+                    f"#### Diff\n<CODE_FOR_REVIEW>\n{file_ctx.diff_content[:2000]}\n</CODE_FOR_REVIEW>\n"
                 )
             parts.append(
-                f"#### Content\n```\n{file_ctx.file_content[:4000]}\n```\n"
+                f"#### Content\n<CODE_FOR_REVIEW>\n{file_ctx.file_content[:4000]}\n</CODE_FOR_REVIEW>\n"
             )
             if file_ctx.tier1_findings:
                 parts.append("#### Tier 1 Findings\n")

@@ -122,7 +122,7 @@ class GitOperations:
         if target_dir is not None:
             args.append(str(target_dir))
 
-        output = GitOperations._run_git(args, timeout=timeout)
+        GitOperations._run_git(args, timeout=timeout)
         # _run_git logs failures at DEBUG; check if target exists
         clone_path = target_dir if target_dir else Path(url.rstrip("/").split("/")[-1].removesuffix(".git"))
         if not clone_path.exists():

@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class Tier1Runner:
-    def __init__(self, tools: list[Tier1Tool] | None = None) -> None:
+    def __init__(self, tools: list[Tier1Tool] | None = None, max_duration: float = 300.0) -> None:
         self._tools = tools or []
+        self._max_duration = max_duration
 
     def register(self, tool: Tier1Tool) -> None:
         self._tools.append(tool)
@@ -35,6 +36,9 @@ class Tier1Runner:
         tool_summary: dict[str, dict] = {}
 
         for tool in available:
+            if time.time() - start > self._max_duration:
+                logger.warning("Tier 1 aggregate timeout (%.0fs) — remaining tools skipped", self._max_duration)
+                break
             tool_start = time.time()
             try:
                 findings = tool.run_batch(file_paths, repo_path)

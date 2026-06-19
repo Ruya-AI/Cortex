@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
@@ -78,7 +77,6 @@ class SQLiteFindingRepository:
                 ),
             )
             inserted += 1
-        conn.commit()
         return inserted
 
     # ------------------------------------------------------------------
@@ -121,5 +119,4 @@ class SQLiteFindingRepository:
             """,
             (state, resolved_at, finding_id),
         )
-        conn.commit()
         return cursor.rowcount > 0

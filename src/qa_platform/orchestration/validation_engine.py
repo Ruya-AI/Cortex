@@ -17,6 +17,9 @@ class ValidationEngine:
     def validate(self, findings: list[Finding], repo_path: Path) -> ValidationResult:
         if not self._validator:
             logger.warning("No validator agent configured — all findings marked UNVALIDATED")
+            for f in findings:
+                f.validation_status = ValidationStatus.UNVALIDATED
+                f.validation_reasoning = "No validator agent configured"
             return ValidationResult(validated_findings=findings)
 
         validated = []

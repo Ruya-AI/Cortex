@@ -51,6 +51,7 @@ class Tier1Tool(ABC):
                 text=True,
                 timeout=timeout,
                 errors="replace",
+                start_new_session=True,
             )
             return result.returncode, result.stdout, result.stderr
         except FileNotFoundError:

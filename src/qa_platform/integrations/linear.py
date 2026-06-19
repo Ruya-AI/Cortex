@@ -39,7 +39,6 @@ class LinearIntegration(IntegrationTarget):
         repo = scan_metadata.get("repository", "unknown")
 
         try:
-            import httpx
 
             headers = {
                 "Authorization": self._api_key,

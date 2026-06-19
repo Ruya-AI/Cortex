@@ -25,7 +25,8 @@ class FindingLineValidator:
                     text = full_path.read_text(encoding="utf-8", errors="replace")
                     line_count_cache[file_key] = len(text.splitlines())
                 except (OSError, ValueError):
-                    # File not found or unreadable -- skip this finding.
+                    # File not found or unreadable -- cache as 0 to avoid re-reads.
+                    line_count_cache[file_key] = 0
                     continue
 
             line_count = line_count_cache[file_key]

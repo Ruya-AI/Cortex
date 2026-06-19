@@ -52,7 +52,6 @@ class UnusedModuleTool(Tier1Tool):
 
         for match in _IMPORT_RE.finditer(content):
             line_no = content[: match.start()].count("\n") + 1
-            line_text = lines[line_no - 1] if line_no <= len(lines) else ""
             # Skip star imports
             if "*" in match.group(0):
                 continue

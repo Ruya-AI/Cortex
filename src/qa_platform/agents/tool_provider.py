@@ -13,8 +13,20 @@ class AgentToolProvider:
     def __init__(self, repo_path: Path):
         self._repo_path = repo_path
 
+    def _resolve_safe(self, path: str) -> Path | None:
+        """Resolve path and verify it stays within the repository."""
+        try:
+            full = (self._repo_path / path).resolve()
+            if not full.is_relative_to(self._repo_path.resolve()):
+                return None
+            return full
+        except (ValueError, OSError):
+            return None
+
     def read_file(self, path: str, start_line: int | None = None, end_line: int | None = None) -> str:
-        full_path = self._repo_path / path
+        full_path = self._resolve_safe(path)
+        if full_path is None:
+            return f"[Access denied: path outside repository: {path}]"
         if not full_path.exists() or not full_path.is_file():
             return f"[File not found: {path}]"
         try:
@@ -30,7 +42,13 @@ class AgentToolProvider:
             return f"[Error reading {path}: {e}]"
 
     def grep(self, pattern: str, path: str | None = None, scope: str | None = None) -> str:
-        search_path = self._repo_path / (path or scope or ".")
+        if len(pattern) > 200:
+            return "[Pattern too long (max 200 chars)]"
+        search_dir = path or scope or "."
+        safe_path = self._resolve_safe(search_dir)
+        if safe_path is None:
+            return f"[Access denied: path outside repository: {search_dir}]"
+        search_path = safe_path
         try:
             result = subprocess.run(
                 ["grep", "-rn", "--include=*.py", "--include=*.js", "--include=*.ts",
@@ -67,7 +85,9 @@ class AgentToolProvider:
         return self.read_file(file, start_line=max(1, line - radius), end_line=line + radius)
 
     def list_directory(self, path: str = ".") -> str:
-        dir_path = self._repo_path / path
+        dir_path = self._resolve_safe(path)
+        if dir_path is None:
+            return f"[Access denied: path outside repository: {path}]"
         if not dir_path.exists() or not dir_path.is_dir():
             return f"[Directory not found: {path}]"
         try:

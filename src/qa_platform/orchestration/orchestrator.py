@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import shutil
 import time
@@ -61,6 +59,7 @@ class ScanOrchestrator:
         scan_id = f"QA-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}"
         errors: list[str] = []
         repo_context = None
+        all_findings_backup: list = []
 
         def _progress(msg: str) -> None:
             if progress:
@@ -159,6 +158,8 @@ class ScanOrchestrator:
                     logger.error("Agent review failed: %s", e)
                     errors.append(f"Agent review: {e}")
 
+            all_findings_backup = list(all_findings)
+
             # Phase 8: Validation
             if self._validation_engine and any(f.tier >= 2 for f in all_findings):
                 _progress("Validating findings...")
@@ -194,6 +195,8 @@ class ScanOrchestrator:
                 except Exception as e:
                     logger.error("Quality gate failed: %s", e)
 
+            all_findings_backup = list(all_findings)
+
             # Phase 11: Reports
             duration = round(time.time() - start, 2)
             output_dir = Path(request.output_path) if request.output_path else Path(".qa-reports")
@@ -211,14 +214,6 @@ class ScanOrchestrator:
                 "pr_number": request.pr_number,
                 "remote_url": repo_context.remote_url if repo_context else "",
                 "commit_sha": repo_context.commit_sha if repo_context else "",
-            }
-
-            repo_info = {
-                "repository": Path(request.repo).name if not request.repo.startswith("http") else request.repo,
-                "branch": repo_context.branch if repo_context else "",
-                "commit_sha": repo_context.commit_sha if repo_context else "",
-                "commit_message": repo_context.commit_message if repo_context else "",
-                "remote_url": repo_context.remote_url if repo_context else "",
             }
 
             json_path = None
@@ -291,8 +286,13 @@ class ScanOrchestrator:
                     })
                     if self._finding_repo:
                         self._finding_repo.save_findings(self._db_conn, scan_id, processed.active_findings)
+                    self._db_conn.commit()
                 except Exception as e:
                     logger.debug("Persistence failed: %s", e)
+                    try:
+                        self._db_conn.rollback()
+                    except Exception:
+                        pass
 
             severity_counts = gate_result.severity_counts or {}
 
@@ -314,6 +314,8 @@ class ScanOrchestrator:
             logger.error("Scan failed: %s", e)
             return ScanResult(
                 report_id=scan_id,
+                finding_count=len(all_findings_backup),
+                severity_counts=self._count_severities(all_findings_backup),
                 quality_gate_status="error",
                 execution_duration=round(time.time() - start, 2),
                 errors=[str(e)],
@@ -326,8 +328,15 @@ class ScanOrchestrator:
                         self._repo_resolver.cleanup(repo_context)
                     elif repo_context.local_path.exists():
                         shutil.rmtree(repo_context.local_path, ignore_errors=True)
-                except Exception:
-                    pass
+                except Exception as cleanup_err:
+                    logger.warning("Failed to clean up temp clone: %s", cleanup_err)
+
+    def _count_severities(self, findings):
+        counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+        for f in findings:
+            sev_name = f.severity.name.lower() if hasattr(f.severity, 'name') else str(f.severity)
+            counts[sev_name] = counts.get(sev_name, 0) + 1
+        return counts
 
     def _list_all_files(self, repo_path: Path) -> list[str]:
         files = []

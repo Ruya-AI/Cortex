@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 from qa_platform.core.finding import FindingCategory
 from qa_platform.core.schemas import AgentResult, FileReviewContext, FileGroupReviewContext, MemoryDocument

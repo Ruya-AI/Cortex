@@ -11,13 +11,9 @@ from typing import Any
 
 from qa_platform.core.finding import (
     Finding,
-    Severity,
-    Confidence,
-    Classification,
     LifecycleState,
 )
-from qa_platform.core.schemas import QualityGateResult, RepositoryContext, FindingCluster
-from qa_platform.core.text_sanitizer import sanitize
+from qa_platform.core.schemas import QualityGateResult, RepositoryContext
 
 logger = logging.getLogger(__name__)
 
@@ -366,13 +362,13 @@ class ReportGenerator:
 
         # -- HTML head + CSS -----------------------------------------------
         report_id = meta.get("report_id", "")
-        parts.append(f"""<!DOCTYPE html>
+        parts.append("""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>QA Assessment Report</title>
 <style>
-  body {{
+  body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                  "Helvetica Neue", Arial, sans-serif;
     max-width: 960px;
@@ -380,28 +376,28 @@ class ReportGenerator:
     padding: 0 1rem;
     color: #212529;
     line-height: 1.6;
-  }}
-  h1, h2 {{ color: #1a1a2e; }}
-  .meta-table {{
+  }
+  h1, h2 { color: #1a1a2e; }
+  .meta-table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 1.5rem;
-  }}
-  .meta-table tr:nth-child(even) {{ background: #f8f9fa; }}
-  .meta-table td, .meta-table th {{
+  }
+  .meta-table tr:nth-child(even) { background: #f8f9fa; }
+  .meta-table td, .meta-table th {
     padding: 0.5rem 0.75rem;
     border: 1px solid #dee2e6;
     text-align: left;
-  }}
-  .meta-table th {{ background: #e9ecef; width: 200px; }}
-  .summary-box {{
+  }
+  .meta-table th { background: #e9ecef; width: 200px; }
+  .summary-box {
     background: #e8f4fd;
     border-left: 4px solid #0f3460;
     padding: 1rem 1.5rem;
     margin: 1.5rem 0;
     border-radius: 4px;
-  }}
-  .risk-badge {{
+  }
+  .risk-badge {
     display: inline-block;
     color: #fff;
     padding: 0.3rem 0.8rem;
@@ -409,8 +405,8 @@ class ReportGenerator:
     font-weight: 700;
     font-size: 0.95rem;
     margin-left: 0.5rem;
-  }}
-  .severity-badge {{
+  }
+  .severity-badge {
     display: inline-block;
     color: #fff;
     padding: 0.2rem 0.6rem;
@@ -418,32 +414,32 @@ class ReportGenerator:
     font-size: 0.85rem;
     font-weight: 600;
     margin-right: 0.4rem;
-  }}
-  .finding {{
+  }
+  .finding {
     border: 1px solid #dee2e6;
     border-radius: 8px;
     margin: 1rem 0;
     padding: 1rem 1.25rem;
     border-left-width: 5px;
     border-left-style: solid;
-  }}
-  .finding-header {{
+  }
+  .finding-header {
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
     margin-bottom: 0.5rem;
-  }}
-  .finding-header h3 {{ margin: 0; }}
-  .finding .detail {{ margin: 0.3rem 0; }}
-  .evidence {{
+  }
+  .finding-header h3 { margin: 0; }
+  .finding .detail { margin: 0.3rem 0; }
+  .evidence {
     background: #f8f9fa;
     padding: 0.75rem 1rem;
     border-radius: 4px;
     margin: 0.5rem 0;
-  }}
-  .recommendation pre {{
+  }
+  .recommendation pre {
     background: #f0f0f0;
     padding: 0.75rem 1rem;
     border-radius: 4px;
@@ -451,8 +447,8 @@ class ReportGenerator:
     font-size: 0.9rem;
     white-space: pre-wrap;
     word-wrap: break-word;
-  }}
-  pre {{
+  }
+  pre {
     background: #f8f9fa;
     padding: 0.75rem 1rem;
     border-radius: 4px;
@@ -460,14 +456,14 @@ class ReportGenerator:
     font-size: 0.9rem;
     white-space: pre-wrap;
     word-wrap: break-word;
-  }}
-  .footer {{
+  }
+  .footer {
     margin-top: 3rem;
     padding-top: 1rem;
     border-top: 1px solid #dee2e6;
     color: #888;
     font-size: 0.85rem;
-  }}
+  }
 </style>
 </head>
 <body>

@@ -65,7 +65,6 @@ class SQLiteAuditLogger:
                 status,
             ),
         )
-        conn.commit()
         return log_id
 
     # ------------------------------------------------------------------
