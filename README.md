@@ -621,6 +621,87 @@ Generated at `.qa-reports/scan-<id>-executive.json`:
 - By-category summary
 - Noise reduction metrics (how many findings filtered and why)
 
+### Understanding the Executive Report
+
+The executive report is a filtered, prioritized view of the full report. It takes all findings, removes low-value noise, and presents what remains as a ranked action list. Below is what each parameter means, how it is computed, and how to interpret it.
+
+#### Report Identity
+
+| Parameter | What It Contains | How to Use It |
+|---|---|---|
+| `report_id` | Unique scan identifier (e.g., `QA-RPT-2026-06-19-full`) | Reference this when discussing findings across teams. Links executive report to full report. |
+| `generated_at` | ISO 8601 timestamp of when the scan ran | Confirms the report reflects the codebase at a specific point in time. |
+| `repository` | Name of the scanned repository | Identifies which project this report covers. |
+| `branch` | Branch that was scanned (e.g., `main`, `master`) | Confirms which branch was analyzed. |
+| `commit` | First 12 characters of the commit SHA | Pinpoints the exact code version. Re-running on the same commit produces comparable results. |
+
+#### Risk Assessment
+
+| Parameter | Values | How It Is Computed | What It Means |
+|---|---|---|---|
+| `risk` | `CRITICAL`, `HIGH`, `MEDIUM`, `CLEAN` | Scans ALL findings in the full report (not just curated items). Returns the highest severity level found: any critical → CRITICAL, any high → HIGH, any medium → MEDIUM, otherwise → CLEAN. | The overall health indicator. CLEAN means no significant issues. HIGH means important issues exist that need engineering attention. CRITICAL means serious problems that should block release. |
+
+#### Summary Counts
+
+| Parameter | How It Is Computed | What It Means |
+|---|---|---|
+| `total` | Count of ALL findings in the full report | The raw number before any filtering. Represents everything the platform detected. |
+| `actionable` | Count of findings that passed the curation filter | How many findings are worth developer attention. This is the working number. |
+| `must_fix_count` | Count of curated findings with severity `critical` or `high` | Issues that need immediate attention. These represent real risks — potential bugs, architectural flaws, or security concerns. |
+| `should_fix_count` | Count of curated findings with severity `medium` | Genuine issues to address in normal workflow. Type errors, moderate complexity, design improvements. |
+| `consider_count` | Count of curated findings with severity `low` or `info` that survived curation | Minor items. In practice this is usually 0 because the curation filter removes low/info severity. |
+| `noise_removed` | Percentage: `(total - actionable) / total × 100` | What fraction of findings were filtered out as low-value. A higher percentage means the raw scan was noisy and the curation removed more. A lower percentage means most findings were actionable. |
+
+#### Action Items
+
+Each item in the `items` array represents one finding that passed curation. Items are sorted by severity (critical first, then high, then medium). The list is capped at 20 items.
+
+| Field | What It Contains | How to Use It |
+|---|---|---|
+| `source` | Finding ID from the full report (e.g., `F-QA-PLATF-001`) | Look up this ID in the full report for detailed evidence, code snippets, and explanation. |
+| `severity` | `critical`, `high`, or `medium` | Determines priority. Fix critical/high first. |
+| `category` | `correctness`, `security`, or `design` | Tells you what type of issue it is. Correctness = potential bugs. Security = potential vulnerabilities. Design = structural/maintainability problems. |
+| `file` | File path where the issue was found | Navigate directly to this file in your editor. |
+| `line` | Line number where the issue starts | Jump to the exact location in the file. |
+| `issue` | Short description of what is wrong | Read this to understand the problem without opening the file. |
+| `action` | Recommended fix | What the platform suggests you do about it. May be empty for AI agent findings where the explanation in the full report provides the guidance. |
+
+#### By Category
+
+The `categories` array groups findings by type so you can see patterns.
+
+| Field | What It Means |
+|---|---|
+| `category` | The finding category: `correctness`, `security`, `design`, `consistency`, `hygiene` |
+| `must_fix` | How many critical + high findings in this category |
+| `should_fix` | How many medium findings in this category |
+| `consider` | How many low/info findings in this category (usually 0 after curation) |
+| `total` | Sum of must_fix + should_fix + consider |
+
+If one category dominates (e.g., 40 out of 50 findings are `correctness`), it indicates a systemic gap in that area — the team may need focused effort on type safety, testing, or whichever area is flagged.
+
+#### Noise Reduction
+
+The `exclusion_reasons` dictionary explains why findings were removed from the executive report. Each key is a reason, and the value is the count of findings excluded for that reason.
+
+| Exclusion Reason | What It Means | When It Applies |
+|---|---|---|
+| `low severity` | Finding had severity `low` or `info` — trivial issues not worth executive attention | Style nits, informational notes, minor suggestions |
+| `low confidence` | Finding had confidence `uncertain` — insufficient evidence to act on | Possible false positives, ambiguous detections |
+| `pre-existing, non-critical` | Finding existed before recent changes and is not critical — old debt, not new risk | Findings classified as `pre_existing` with severity below `critical` |
+| `no evidence` | Finding had no tool attribution, no code references, and no source name | Findings that lack substantiation — no tool call or code reference to back them up |
+
+#### Relationship Between Reports
+
+The executive report is derived entirely from the full report. Nothing is added — only filtered.
+
+| Aspect | Full Report | Executive Report |
+|---|---|---|
+| **Findings** | All findings with full evidence, code snippets, explanations | Top 20 curated findings with location and recommendation only |
+| **Purpose** | Reference document — the developer fixing the code reads this | Decision document — the lead deciding what to prioritize reads this |
+| **Size** | Can be hundreds of pages (PDF) or megabytes (JSON) | Fits on one screen. Typically 1-2 pages PDF, <10KB JSON |
+| **Traceability** | Contains everything | Every `source` ID maps back to a finding in the full report |
+
 ---
 
 ## Finding Schema
