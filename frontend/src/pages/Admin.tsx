@@ -174,12 +174,6 @@ export function Admin() {
 
   // --- Repository Management ---
   const [repos, setRepos] = useState<Repository[]>([]);
-  const [repoOwner, setRepoOwner] = useState('');
-  const [repoName, setRepoName] = useState('');
-  const [repoDesc, setRepoDesc] = useState('');
-  const [repoBranch, setRepoBranch] = useState('main');
-  const [repoAutoFetch, setRepoAutoFetch] = useState(true);
-  const [repoQaTiers, setRepoQaTiers] = useState('t1,t2');
   const [repoMsg, setRepoMsg] = useState('');
 
   // --- Automation Rules ---
@@ -295,36 +289,6 @@ export function Admin() {
         setNotifConfigured(true);
       })
       .catch(() => setNotifMsg('Failed to save notification settings.'));
-  };
-
-  const addRepo = () => {
-    if (!repoOwner || !repoName) return;
-    setRepoMsg('');
-    fetchApi('/api/github/repos', {
-      method: 'POST',
-      body: JSON.stringify({
-        owner: repoOwner,
-        repo_name: repoName,
-        description: repoDesc,
-        default_branch: repoBranch,
-        auto_fetch: repoAutoFetch,
-        qa_tiers: repoQaTiers,
-      }),
-    })
-      .then(() => {
-        setRepoMsg('Repository added.');
-        setRepoOwner('');
-        setRepoName('');
-        setRepoDesc('');
-        setRepoBranch('main');
-        setRepoAutoFetch(true);
-        setRepoQaTiers('t1,t2');
-        // Refresh repo list
-        fetchApi<{ items: Repository[] }>('/api/github/repos')
-          .then(data => setRepos(data.items || []))
-          .catch(() => {});
-      })
-      .catch(() => setRepoMsg('Failed to add repository.'));
   };
 
   const deleteRepo = (id: string) => {
@@ -720,76 +684,7 @@ export function Admin() {
           )}
         </div>
 
-        {/* Add Repository Form (Manual) */}
-        <div style={{
-          background: '#f8f9fa',
-          borderRadius: '6px',
-          padding: '16px',
-          marginBottom: '20px',
-          border: '1px solid #e9ecef',
-        }}>
-          <h4 style={{ margin: '0 0 14px 0', fontSize: '14px', color: '#495057' }}>Add Repository</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Owner</label>
-              <input
-                style={inputStyle}
-                value={repoOwner}
-                onChange={e => setRepoOwner(e.target.value)}
-                placeholder="e.g. Ruya-AI"
-              />
-            </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Repository Name</label>
-              <input
-                style={inputStyle}
-                value={repoName}
-                onChange={e => setRepoName(e.target.value)}
-                placeholder="e.g. Cortex"
-              />
-            </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Default Branch</label>
-              <input
-                style={inputStyle}
-                value={repoBranch}
-                onChange={e => setRepoBranch(e.target.value)}
-                placeholder="main"
-              />
-            </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Description</label>
-              <input
-                style={inputStyle}
-                value={repoDesc}
-                onChange={e => setRepoDesc(e.target.value)}
-                placeholder="Brief description"
-              />
-            </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>QA Tiers</label>
-              <input
-                style={inputStyle}
-                value={repoQaTiers}
-                onChange={e => setRepoQaTiers(e.target.value)}
-                placeholder="t1,t2,t3"
-              />
-            </div>
-            <div style={{ ...fieldGroupStyle, display: 'flex', alignItems: 'flex-end', gap: '8px', paddingBottom: '2px' }}>
-              <input
-                type="checkbox"
-                checked={repoAutoFetch}
-                onChange={e => setRepoAutoFetch(e.target.checked)}
-                id="repo-auto-fetch"
-              />
-              <label htmlFor="repo-auto-fetch" style={{ fontSize: '13px', fontWeight: 500, color: '#333' }}>
-                Auto-fetch PRs
-              </label>
-            </div>
-          </div>
-          <button style={{ ...buttonStyle, background: '#28a745' }} onClick={addRepo}>Add Repository</button>
-          {repoMsg && <p style={msgStyle(repoMsg)}>{repoMsg}</p>}
-        </div>
+        {repoMsg && <p style={msgStyle(repoMsg)}>{repoMsg}</p>}
 
         {/* Repository List */}
         {repos.length > 0 ? (
