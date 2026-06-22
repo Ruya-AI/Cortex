@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,13 +10,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from cortex_web.api.admin import router as admin_router
+from cortex_web.api.analytics import router as analytics_router
+from cortex_web.api.automation import router as automation_router
+from cortex_web.api.github import router as github_router
 from cortex_web.api.health import router as health_router
+from cortex_web.api.linear import router as linear_router
 from cortex_web.api.pull_requests import router as pr_router
 from cortex_web.api.qa_execution import router as qa_router
 from cortex_web.api.reports import router as reports_router
+from cortex_web.api.webhooks import router as webhooks_router
+from cortex_web.api.ws import router as ws_router
 from cortex_web.config import settings
 
 logger = logging.getLogger(__name__)
+
+_background_tasks: list[asyncio.Task] = []
 
 
 @asynccontextmanager
@@ -27,7 +36,20 @@ async def lifespan(app: FastAPI):
         logger.info("Database initialized")
     except Exception as e:
         logger.warning("Database init failed (PostgreSQL may not be running): %s", e)
+
+    # Start scheduled PR fetch loop
+    if settings.enable_github:
+        from cortex_web.tasks.pr_fetch import scheduled_pr_fetch_loop
+        task = asyncio.create_task(scheduled_pr_fetch_loop(interval_seconds=300))
+        _background_tasks.append(task)
+        logger.info("Scheduled PR fetch loop started (every 300s)")
+
     yield
+
+    # Cancel background tasks on shutdown
+    for task in _background_tasks:
+        task.cancel()
+    _background_tasks.clear()
     logger.info("Shutting down Cortex Web...")
 
 
@@ -47,10 +69,16 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(github_router)
 app.include_router(pr_router)
 app.include_router(qa_router)
 app.include_router(reports_router)
 app.include_router(admin_router)
+app.include_router(webhooks_router)
+app.include_router(ws_router)
+app.include_router(linear_router)
+app.include_router(automation_router)
+app.include_router(analytics_router)
 
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
