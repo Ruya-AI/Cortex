@@ -10,7 +10,7 @@ class QAExecution(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pull_request_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # NULL for ad-hoc scans
-    scan_id: Mapped[str] = mapped_column(String(100))  # Maps to qa_platform scan_id
+    scan_id: Mapped[str] = mapped_column(String(100), default="")  # Maps to qa_platform scan_id
 
     # Repository info
     repository_url: Mapped[str] = mapped_column(String(500))

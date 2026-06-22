@@ -9,82 +9,57 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cortex_web.database import get_db
-from cortex_web.models.github_config import GitHubConfig, RepositoryConfig
+from cortex_web.models.github_config import RepositoryConfig
 from cortex_web.models.pull_request import PullRequest
+from cortex_web.services.admin_settings import AdminSettings
 from cortex_web.services.github_service import GitHubService
 
 router = APIRouter(prefix="/api/github", tags=["github"])
 
 
-class GitHubConfigCreate(BaseModel):
-    name: str
-    token: str
-    api_url: str = "https://api.github.com"
-
-
 class RepoConfigCreate(BaseModel):
-    github_config_id: str
     owner: str
     repo_name: str
+    description: str = ""
     default_branch: str = "main"
     auto_fetch_prs: bool = False
     auto_qa_on_pr: bool = False
     qa_tiers: str = "1,2"
 
 
-@router.get("/configs")
-async def list_github_configs(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(GitHubConfig).order_by(GitHubConfig.created_at.desc()))
-    configs = result.scalars().all()
-    return {"items": [
-        {"id": c.id, "name": c.name, "api_url": c.api_url, "is_active": c.is_active, "created_at": c.created_at.isoformat()}
-        for c in configs
-    ]}
-
-
-@router.post("/configs")
-async def create_github_config(data: GitHubConfigCreate, db: AsyncSession = Depends(get_db)):
-    config = GitHubConfig(
-        id=str(uuid.uuid4()),
-        name=data.name,
-        token_encrypted=data.token,  # In production, encrypt this
-        api_url=data.api_url,
-    )
-    db.add(config)
-    await db.commit()
-    return {"id": config.id, "name": config.name, "status": "created"}
-
-
-@router.delete("/configs/{config_id}")
-async def delete_github_config(config_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(GitHubConfig).where(GitHubConfig.id == config_id))
-    config = result.scalar_one_or_none()
-    if not config:
-        raise HTTPException(status_code=404, detail="Config not found")
-    await db.delete(config)
-    await db.commit()
-    return {"status": "deleted"}
+class RepoConfigUpdate(BaseModel):
+    description: str | None = None
+    default_branch: str | None = None
+    auto_fetch_prs: bool | None = None
+    auto_qa_on_pr: bool | None = None
+    qa_tiers: str | None = None
+    is_active: bool | None = None
 
 
 @router.get("/repos")
 async def list_repositories(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RepositoryConfig).order_by(RepositoryConfig.created_at.desc()))
     repos = result.scalars().all()
-    return {"items": [
-        {"id": r.id, "github_config_id": r.github_config_id, "owner": r.owner, "repo_name": r.repo_name,
-         "default_branch": r.default_branch, "auto_fetch_prs": r.auto_fetch_prs, "auto_qa_on_pr": r.auto_qa_on_pr,
-         "qa_tiers": r.qa_tiers, "is_active": r.is_active}
-        for r in repos
-    ]}
+    return {"items": [_repo_to_dict(r) for r in repos]}
 
 
 @router.post("/repos")
 async def create_repository(data: RepoConfigCreate, db: AsyncSession = Depends(get_db)):
+    # Check if repo already exists
+    existing = await db.execute(
+        select(RepositoryConfig).where(
+            RepositoryConfig.owner == data.owner,
+            RepositoryConfig.repo_name == data.repo_name,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Repository {data.owner}/{data.repo_name} already exists")
+
     repo = RepositoryConfig(
         id=str(uuid.uuid4()),
-        github_config_id=data.github_config_id,
         owner=data.owner,
         repo_name=data.repo_name,
+        description=data.description,
         default_branch=data.default_branch,
         auto_fetch_prs=data.auto_fetch_prs,
         auto_qa_on_pr=data.auto_qa_on_pr,
@@ -92,23 +67,46 @@ async def create_repository(data: RepoConfigCreate, db: AsyncSession = Depends(g
     )
     db.add(repo)
     await db.commit()
-    return {"id": repo.id, "status": "created"}
+    return {"id": repo.id, "status": "created", "repo": f"{data.owner}/{data.repo_name}"}
+
+
+@router.put("/repos/{repo_id}")
+async def update_repository(repo_id: str, data: RepoConfigUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RepositoryConfig).where(RepositoryConfig.id == repo_id))
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(repo, field, value)
+    await db.commit()
+    return _repo_to_dict(repo)
+
+
+@router.delete("/repos/{repo_id}")
+async def delete_repository(repo_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RepositoryConfig).where(RepositoryConfig.id == repo_id))
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    await db.delete(repo)
+    await db.commit()
+    return {"status": "deleted"}
 
 
 @router.post("/repos/{repo_id}/fetch-prs")
 async def fetch_prs(repo_id: str, db: AsyncSession = Depends(get_db)):
-    """Manually fetch open PRs for a repository."""
+    """Fetch open PRs for a repository using the admin GitHub token."""
     result = await db.execute(select(RepositoryConfig).where(RepositoryConfig.id == repo_id))
     repo = result.scalar_one_or_none()
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    gh_result = await db.execute(select(GitHubConfig).where(GitHubConfig.id == repo.github_config_id))
-    gh_config = gh_result.scalar_one_or_none()
-    if not gh_config:
-        raise HTTPException(status_code=404, detail="GitHub config not found")
+    token = await AdminSettings.get_github_token(db)
+    if not token:
+        raise HTTPException(status_code=400, detail="GitHub token not configured. Set it in Admin Settings.")
 
-    service = GitHubService(token=gh_config.token_encrypted, api_url=gh_config.api_url)
+    api_url = await AdminSettings.get_github_api_url(db)
+    service = GitHubService(token=token, api_url=api_url)
     prs_data = await service.fetch_open_prs(repo.owner, repo.repo_name)
 
     created_count = 0
@@ -142,3 +140,19 @@ async def fetch_prs(repo_id: str, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return {"created": created_count, "updated": updated_count, "total_prs": len(prs_data)}
+
+
+def _repo_to_dict(r: RepositoryConfig) -> dict:
+    return {
+        "id": r.id,
+        "owner": r.owner,
+        "repo_name": r.repo_name,
+        "full_name": f"{r.owner}/{r.repo_name}",
+        "description": r.description,
+        "default_branch": r.default_branch,
+        "auto_fetch_prs": r.auto_fetch_prs,
+        "auto_qa_on_pr": r.auto_qa_on_pr,
+        "qa_tiers": r.qa_tiers,
+        "is_active": r.is_active,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }

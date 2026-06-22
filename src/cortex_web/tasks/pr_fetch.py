@@ -8,8 +8,9 @@ from datetime import datetime
 from sqlalchemy import select
 
 from cortex_web.database import async_session
-from cortex_web.models.github_config import GitHubConfig, RepositoryConfig
+from cortex_web.models.github_config import RepositoryConfig
 from cortex_web.models.pull_request import PullRequest
+from cortex_web.services.admin_settings import AdminSettings
 from cortex_web.services.github_service import GitHubService
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,14 @@ logger = logging.getLogger(__name__)
 async def fetch_prs_for_all_repos():
     """Fetch open PRs for all repos with auto_fetch_prs enabled."""
     async with async_session() as db:
+        # Get admin GitHub token (single token for all repos)
+        token = await AdminSettings.get_github_token(db)
+        if not token:
+            logger.warning("No GitHub token configured in admin settings — skipping PR fetch")
+            return
+
+        api_url = await AdminSettings.get_github_api_url(db)
+
         repos_result = await db.execute(
             select(RepositoryConfig).where(
                 RepositoryConfig.auto_fetch_prs == True,  # noqa: E712
@@ -26,19 +35,10 @@ async def fetch_prs_for_all_repos():
         )
         repos = repos_result.scalars().all()
 
+        service = GitHubService(token=token, api_url=api_url)
+
         for repo in repos:
             try:
-                gh_result = await db.execute(
-                    select(GitHubConfig).where(GitHubConfig.id == repo.github_config_id)
-                )
-                gh_config = gh_result.scalar_one_or_none()
-                if not gh_config or not gh_config.is_active:
-                    continue
-
-                service = GitHubService(
-                    token=gh_config.token_encrypted,
-                    api_url=gh_config.api_url,
-                )
                 prs_data = await service.fetch_open_prs(repo.owner, repo.repo_name)
 
                 for pr_data in prs_data:
