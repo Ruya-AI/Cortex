@@ -33,23 +33,6 @@ interface OrgRepo {
   already_added: boolean;
 }
 
-interface LinearSettings {
-  api_key: string;
-  team_id: string;
-  workspace_name: string;
-  auto_create_tasks: boolean;
-  min_severity: string;
-  max_tasks_per_scan: number;
-  configured: boolean;
-}
-
-interface NotificationSettings {
-  slack_webhook_url: string;
-  email: string;
-  notify_on_critical: boolean;
-  notify_on_gate_failure: boolean;
-  configured: boolean;
-}
 
 interface Repository {
   id: string;
@@ -222,28 +205,28 @@ export function Admin() {
       .catch(() => {});
 
     // Linear settings
-    fetchApi<LinearSettings>('/api/admin/linear')
+    fetchApi<Record<string, unknown>>('/api/admin/linear')
       .then(data => {
         if (data) {
-          setLinearTeamId(data.team_id || '');
-          setLinearWorkspace(data.workspace_name || '');
-          setLinearAutoCreate(data.auto_create_tasks ?? false);
-          setLinearMinSeverity(data.min_severity || 'high');
-          setLinearMaxTasks(data.max_tasks_per_scan ?? 10);
-          setLinearConfigured(data.configured ?? false);
+          setLinearTeamId((data.team_id as string) || '');
+          setLinearWorkspace((data.workspace_name as string) || '');
+          setLinearAutoCreate((data.auto_create_tasks as boolean) ?? false);
+          setLinearMinSeverity((data.min_severity as string) || 'high');
+          setLinearMaxTasks((data.max_tasks_per_scan as number) ?? 10);
+          setLinearConfigured((data.is_configured as boolean) ?? false);
         }
       })
       .catch(() => {});
 
     // Notification settings
-    fetchApi<NotificationSettings>('/api/admin/notifications')
+    fetchApi<Record<string, unknown>>('/api/admin/notifications')
       .then(data => {
         if (data) {
-          setSlackWebhook(data.slack_webhook_url || '');
-          setNotifEmail(data.email || '');
-          setNotifCritical(data.notify_on_critical ?? true);
-          setNotifGateFailure(data.notify_on_gate_failure ?? true);
-          setNotifConfigured(data.configured ?? false);
+          setSlackWebhook((data.slack_webhook_url as string) || '');
+          setNotifEmail((data.email as string) || '');
+          setNotifCritical((data.on_critical as boolean) ?? true);
+          setNotifGateFailure((data.on_gate_fail as boolean) ?? true);
+          setNotifConfigured((data.is_configured as boolean) ?? false);
         }
       })
       .catch(() => {});
@@ -276,12 +259,11 @@ export function Admin() {
   };
 
   const saveLinear = () => {
-    if (!linearApiKey) return;
     setLinearMsg('');
     fetchApi('/api/admin/linear', {
       method: 'PUT',
       body: JSON.stringify({
-        api_key: linearApiKey,
+        api_key: linearApiKey || undefined,
         team_id: linearTeamId,
         workspace_name: linearWorkspace,
         auto_create_tasks: linearAutoCreate,
@@ -291,7 +273,7 @@ export function Admin() {
     })
       .then(() => {
         setLinearMsg('Linear settings saved.');
-        setLinearConfigured(true);
+        if (linearApiKey) setLinearConfigured(true);
         setLinearApiKey('');
       })
       .catch(() => setLinearMsg('Failed to save Linear settings.'));
@@ -304,8 +286,8 @@ export function Admin() {
       body: JSON.stringify({
         slack_webhook_url: slackWebhook,
         email: notifEmail,
-        notify_on_critical: notifCritical,
-        notify_on_gate_failure: notifGateFailure,
+        on_critical: notifCritical,
+        on_gate_fail: notifGateFailure,
       }),
     })
       .then(() => {

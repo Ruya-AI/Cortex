@@ -76,7 +76,7 @@ async def fetch_org_repos(db: AsyncSession = Depends(get_db)):
 # -- Linear Settings --
 
 class LinearSettings(BaseModel):
-    api_key: str = ""
+    api_key: str | None = None
     team_id: str = ""
     workspace_name: str = ""
     auto_create_tasks: bool = False
@@ -121,11 +121,14 @@ class NotificationSettings(BaseModel):
 @router.get("/notifications")
 async def get_notification_settings(db: AsyncSession = Depends(get_db)):
     config = await AdminSettings.get_group(db, "notifications.")
+    slack = config.get("notifications.slack_webhook_url", "")
+    email = config.get("notifications.email", "")
     return {
-        "slack_webhook_url": config.get("notifications.slack_webhook_url", ""),
-        "email": config.get("notifications.email", ""),
+        "slack_webhook_url": slack,
+        "email": email,
         "on_critical": config.get("notifications.on_critical", "true") == "true",
         "on_gate_fail": config.get("notifications.on_gate_fail", "true") == "true",
+        "is_configured": bool(slack or email),
     }
 
 @router.put("/notifications")
