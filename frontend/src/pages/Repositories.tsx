@@ -26,6 +26,7 @@ export function Repositories() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<string>('');
   const [qaTiers, setQaTiers] = useState('1,2');
 
@@ -88,6 +89,31 @@ export function Repositories() {
     setSelectedIds(new Set());
   };
 
+  const onFetchAllPRs = async () => {
+    if (repos.length === 0) return;
+    setFetching(true);
+    setExecutionStatus('');
+    let totalCreated = 0;
+    let totalUpdated = 0;
+    let errors = 0;
+
+    for (const repo of repos) {
+      setExecutionStatus(`Fetching PRs for ${repo.full_name}...`);
+      try {
+        const result = await fetchApi<{ created: number; updated: number }>(`/api/github/repos/${repo.id}/fetch-prs`, { method: 'POST' });
+        totalCreated += result.created;
+        totalUpdated += result.updated;
+      } catch {
+        errors++;
+      }
+    }
+
+    const parts = [`${totalCreated} new PRs fetched, ${totalUpdated} updated`];
+    if (errors > 0) parts.push(`${errors} repos failed (check GitHub token in Admin)`);
+    setExecutionStatus(parts.join('. ') + '.');
+    setFetching(false);
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -133,6 +159,23 @@ export function Repositories() {
           }}
         >
           {executing ? 'Running...' : `Run QA on ${selectedIds.size} selected`}
+        </button>
+
+        <button
+          onClick={onFetchAllPRs}
+          disabled={repos.length === 0 || fetching || executing}
+          style={{
+            padding: '8px 24px',
+            background: repos.length > 0 && !fetching && !executing ? '#28a745' : '#ccc',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: repos.length > 0 && !fetching && !executing ? 'pointer' : 'default',
+            fontWeight: 600,
+            fontSize: '14px',
+          }}
+        >
+          {fetching ? 'Fetching PRs...' : 'Fetch PRs for All Repos'}
         </button>
 
         {selectedIds.size > 0 && (
