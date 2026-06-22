@@ -70,7 +70,20 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)):
 
 async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers, cost_limit):
     """Run QA scan in background and update the execution record."""
+    import asyncio
     from cortex_web.database import async_session
+    from cortex_web.api.ws import broadcast_progress
+
+    loop = asyncio.get_event_loop()
+
+    async def _broadcast(msg: dict):
+        await broadcast_progress(execution_id, msg)
+
+    def on_progress(message: str):
+        asyncio.run_coroutine_threadsafe(
+            _broadcast({"type": "progress", "message": message, "repository_url": repo_url}),
+            loop,
+        )
 
     async with async_session() as db:
         result = await db.execute(select(QAExecution).where(QAExecution.id == execution_id))
@@ -82,6 +95,10 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
         execution.started_at = datetime.utcnow()
         await db.commit()
 
+        await broadcast_progress(execution_id, {
+            "type": "status", "status": "running", "repository_url": repo_url,
+        })
+
         try:
             bridge = QABridge()
             scan_result = await bridge.run_scan_async(
@@ -90,6 +107,7 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
                 pr_number=pr_number,
                 tiers=tiers,
                 cost_limit=cost_limit,
+                progress_callback=on_progress,
             )
 
             execution.status = "completed"
@@ -106,9 +124,20 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
             execution.execution_log = scan_result.get("log", "")
             if scan_result.get("errors"):
                 execution.error_message = "\n".join(scan_result["errors"])
+
+            await broadcast_progress(execution_id, {
+                "type": "status", "status": "completed", "repository_url": repo_url,
+                "finding_count": execution.finding_count,
+                "quality_gate_status": execution.quality_gate_status,
+                "duration_seconds": execution.duration_seconds,
+            })
         except Exception as e:
             execution.status = "failed"
             execution.error_message = str(e)
+            await broadcast_progress(execution_id, {
+                "type": "status", "status": "failed", "repository_url": repo_url,
+                "error": str(e),
+            })
         finally:
             execution.completed_at = datetime.utcnow()
             await db.commit()
