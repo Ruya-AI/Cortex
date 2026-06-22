@@ -16,7 +16,21 @@ interface AutomationRule {
 interface GitHubSettings {
   token: string;
   api_url: string;
+  org_name: string;
   configured: boolean;
+}
+
+interface OrgRepo {
+  owner: string;
+  repo_name: string;
+  full_name: string;
+  description: string;
+  default_branch: string;
+  html_url: string;
+  language: string;
+  private: boolean;
+  stars: number;
+  already_added: boolean;
 }
 
 interface LinearSettings {
@@ -149,6 +163,11 @@ export function Admin() {
   // --- GitHub Settings ---
   const [ghToken, setGhToken] = useState('');
   const [ghApiUrl, setGhApiUrl] = useState('https://api.github.com');
+  const [ghOrgName, setGhOrgName] = useState('');
+  const [orgRepos, setOrgRepos] = useState<OrgRepo[]>([]);
+  const [orgRepoSelected, setOrgRepoSelected] = useState<Set<string>>(new Set());
+  const [pullingRepos, setPullingRepos] = useState(false);
+  const [addingSelected, setAddingSelected] = useState(false);
   const [ghConfigured, setGhConfigured] = useState(false);
   const [ghMsg, setGhMsg] = useState('');
 
@@ -192,12 +211,12 @@ export function Admin() {
       .finally(() => setLoading(false));
 
     // GitHub settings
-    fetchApi<GitHubSettings>('/api/admin/github')
+    fetchApi<GitHubSettings & { org_name?: string; is_configured?: boolean }>('/api/admin/github')
       .then(data => {
         if (data) {
           setGhApiUrl(data.api_url || 'https://api.github.com');
-          setGhConfigured(data.configured ?? false);
-          // Token is never returned in full for security
+          setGhOrgName(data.org_name || '');
+          setGhConfigured(data.configured ?? data.is_configured ?? false);
         }
       })
       .catch(() => {});
@@ -243,15 +262,14 @@ export function Admin() {
   /* ---- Handlers ---- */
 
   const saveGithub = () => {
-    if (!ghToken) return;
     setGhMsg('');
     fetchApi('/api/admin/github', {
       method: 'PUT',
-      body: JSON.stringify({ token: ghToken, api_url: ghApiUrl }),
+      body: JSON.stringify({ token: ghToken || undefined, api_url: ghApiUrl, org_name: ghOrgName }),
     })
       .then(() => {
         setGhMsg('GitHub settings saved.');
-        setGhConfigured(true);
+        if (ghToken) setGhConfigured(true);
         setGhToken('');
       })
       .catch(() => setGhMsg('Failed to save GitHub settings.'));
@@ -386,6 +404,15 @@ export function Admin() {
               value={ghApiUrl}
               onChange={e => setGhApiUrl(e.target.value)}
               placeholder="https://api.github.com"
+            />
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Organization / User</label>
+            <input
+              style={inputStyle}
+              value={ghOrgName}
+              onChange={e => setGhOrgName(e.target.value)}
+              placeholder="e.g. Ruya-AI"
             />
           </div>
         </div>
@@ -528,7 +555,190 @@ export function Admin() {
       <div style={cardStyle}>
         <h3 style={headingStyle}>Repository Management</h3>
 
-        {/* Add Repository Form */}
+        {/* Pull Repositories from GitHub */}
+        <div style={{
+          background: '#e8f4fd',
+          borderRadius: '6px',
+          padding: '16px',
+          marginBottom: '20px',
+          border: '1px solid #b8daff',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: orgRepos.length > 0 ? '14px' : '0' }}>
+            <div>
+              <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#0f3460' }}>Pull Repositories from GitHub</h4>
+              <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>
+                {ghOrgName ? `Fetch all repositories from ${ghOrgName}` : 'Set Organization name in GitHub Settings above first'}
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                setPullingRepos(true);
+                setOrgRepos([]);
+                setOrgRepoSelected(new Set());
+                try {
+                  const data = await fetchApi<{ repos: OrgRepo[] }>('/api/admin/github/org-repos');
+                  setOrgRepos(data.repos);
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : 'Failed to fetch';
+                  setRepoMsg(msg);
+                }
+                setPullingRepos(false);
+              }}
+              disabled={!ghConfigured || !ghOrgName || pullingRepos}
+              style={{
+                padding: '8px 20px',
+                background: ghConfigured && ghOrgName && !pullingRepos ? '#0f3460' : '#ccc',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: ghConfigured && ghOrgName && !pullingRepos ? 'pointer' : 'default',
+                fontWeight: 600,
+                fontSize: '13px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {pullingRepos ? 'Pulling...' : 'Pull Repositories'}
+            </button>
+          </div>
+
+          {/* Org Repos Selection List */}
+          {orgRepos.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', color: '#333', fontWeight: 600 }}>
+                  {orgRepos.length} repositories found — select to add for QA
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      const notAdded = orgRepos.filter(r => !r.already_added).map(r => r.full_name);
+                      if (orgRepoSelected.size === notAdded.length) {
+                        setOrgRepoSelected(new Set());
+                      } else {
+                        setOrgRepoSelected(new Set(notAdded));
+                      }
+                    }}
+                    style={{ padding: '4px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    {orgRepoSelected.size > 0 ? 'Deselect All' : 'Select All'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (orgRepoSelected.size === 0) return;
+                      setAddingSelected(true);
+                      let added = 0;
+                      for (const fullName of orgRepoSelected) {
+                        const repo = orgRepos.find(r => r.full_name === fullName);
+                        if (!repo || repo.already_added) continue;
+                        try {
+                          await fetchApi('/api/github/repos', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              owner: repo.owner,
+                              repo_name: repo.repo_name,
+                              description: repo.description,
+                              default_branch: repo.default_branch,
+                            }),
+                          });
+                          added++;
+                          repo.already_added = true;
+                        } catch { /* duplicate or error — skip */ }
+                      }
+                      setOrgRepoSelected(new Set());
+                      setRepoMsg(`Added ${added} repositories for QA.`);
+                      setAddingSelected(false);
+                      // Refresh repo list
+                      fetchApi<{ items: typeof repos }>('/api/github/repos')
+                        .then(data => setRepos(data.items))
+                        .catch(() => {});
+                    }}
+                    disabled={orgRepoSelected.size === 0 || addingSelected}
+                    style={{
+                      padding: '4px 12px',
+                      background: orgRepoSelected.size > 0 && !addingSelected ? '#28a745' : '#ccc',
+                      color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px',
+                      cursor: orgRepoSelected.size > 0 && !addingSelected ? 'pointer' : 'default',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {addingSelected ? 'Adding...' : `Add ${orgRepoSelected.size} Selected`}
+                  </button>
+                </div>
+              </div>
+              <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #dee2e6', borderRadius: '4px', background: '#fff' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #dee2e6', textAlign: 'left', position: 'sticky', top: 0, background: '#f8f9fa' }}>
+                      <th style={{ padding: '8px', width: '35px' }}></th>
+                      <th style={{ padding: '8px' }}>Repository</th>
+                      <th style={{ padding: '8px' }}>Description</th>
+                      <th style={{ padding: '8px', width: '80px' }}>Language</th>
+                      <th style={{ padding: '8px', width: '60px' }}>Stars</th>
+                      <th style={{ padding: '8px', width: '90px' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orgRepos.map(repo => {
+                      const isSelected = orgRepoSelected.has(repo.full_name);
+                      return (
+                        <tr
+                          key={repo.full_name}
+                          style={{
+                            borderBottom: '1px solid #f0f0f0',
+                            background: repo.already_added ? '#f8f8f8' : isSelected ? '#e8f4fd' : 'transparent',
+                            cursor: repo.already_added ? 'default' : 'pointer',
+                            opacity: repo.already_added ? 0.7 : 1,
+                          }}
+                          onClick={() => {
+                            if (repo.already_added) return;
+                            setOrgRepoSelected(prev => {
+                              const next = new Set(prev);
+                              if (next.has(repo.full_name)) next.delete(repo.full_name);
+                              else next.add(repo.full_name);
+                              return next;
+                            });
+                          }}
+                        >
+                          <td style={{ padding: '8px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={repo.already_added}
+                              onChange={() => {}}
+                              style={{ cursor: repo.already_added ? 'default' : 'pointer' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            <a href={repo.html_url} target="_blank" rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              style={{ color: '#0f3460', fontWeight: 600, textDecoration: 'none' }}>
+                              {repo.full_name}
+                            </a>
+                            {repo.private && <span style={{ marginLeft: '6px', background: '#ffc107', color: '#333', padding: '1px 5px', borderRadius: '3px', fontSize: '10px', fontWeight: 600 }}>PRIVATE</span>}
+                          </td>
+                          <td style={{ padding: '8px', color: '#666', fontSize: '12px' }}>
+                            {repo.description ? (repo.description.length > 60 ? repo.description.slice(0, 60) + '...' : repo.description) : '—'}
+                          </td>
+                          <td style={{ padding: '8px', fontSize: '12px' }}>{repo.language || '—'}</td>
+                          <td style={{ padding: '8px', fontSize: '12px' }}>{repo.stars}</td>
+                          <td style={{ padding: '8px' }}>
+                            {repo.already_added ? (
+                              <span style={{ color: '#28a745', fontSize: '11px', fontWeight: 600 }}>ADDED ✓</span>
+                            ) : (
+                              <span style={{ color: '#6c757d', fontSize: '11px' }}>Available</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Add Repository Form (Manual) */}
         <div style={{
           background: '#f8f9fa',
           borderRadius: '6px',

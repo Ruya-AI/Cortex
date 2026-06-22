@@ -20,12 +20,19 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 class GitHubSettings(BaseModel):
     token: str = ""
     api_url: str = "https://api.github.com"
+    org_name: str = ""
 
 @router.get("/github")
 async def get_github_settings(db: AsyncSession = Depends(get_db)):
     token = await AdminSettings.get(db, "github.token")
     api_url = await AdminSettings.get(db, "github.api_url", "https://api.github.com")
-    return {"token": "****" + token[-4:] if len(token) > 4 else ("" if not token else "****"), "api_url": api_url, "is_configured": bool(token)}
+    org_name = await AdminSettings.get(db, "github.org_name")
+    return {
+        "token": "****" + token[-4:] if len(token) > 4 else ("" if not token else "****"),
+        "api_url": api_url,
+        "org_name": org_name,
+        "is_configured": bool(token),
+    }
 
 @router.put("/github")
 async def update_github_settings(data: GitHubSettings, db: AsyncSession = Depends(get_db)):
@@ -33,8 +40,37 @@ async def update_github_settings(data: GitHubSettings, db: AsyncSession = Depend
         await AdminSettings.set(db, "github.token", data.token, category="github", description="GitHub Personal Access Token")
     if data.api_url:
         await AdminSettings.set(db, "github.api_url", data.api_url, category="github", description="GitHub API URL")
+    if data.org_name is not None:
+        await AdminSettings.set(db, "github.org_name", data.org_name, category="github", description="GitHub Organization or User name")
     await db.commit()
     return {"status": "updated"}
+
+@router.get("/github/org-repos")
+async def fetch_org_repos(db: AsyncSession = Depends(get_db)):
+    """Fetch all repositories from the configured GitHub org/user."""
+    token = await AdminSettings.get(db, "github.token")
+    if not token:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="GitHub token not configured")
+    org_name = await AdminSettings.get(db, "github.org_name")
+    if not org_name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="GitHub organization name not configured")
+    api_url = await AdminSettings.get(db, "github.api_url", "https://api.github.com")
+
+    from cortex_web.services.github_service import GitHubService
+    service = GitHubService(token=token, api_url=api_url)
+    repos = await service.fetch_org_repos(org_name)
+
+    # Mark which repos are already configured
+    from cortex_web.models.github_config import RepositoryConfig
+    existing_result = await db.execute(select(RepositoryConfig))
+    existing = {f"{r.owner}/{r.repo_name}" for r in existing_result.scalars().all()}
+
+    for repo in repos:
+        repo["already_added"] = repo["full_name"] in existing
+
+    return {"org": org_name, "repos": repos, "total": len(repos)}
 
 
 # -- Linear Settings --
