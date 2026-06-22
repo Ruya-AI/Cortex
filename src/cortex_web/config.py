@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     enable_automation: bool = True
     enable_analytics: bool = True
 
+    # Notifications
+    slack_webhook_url: str = ""
+    notification_email: str = ""
+    notify_on_critical: bool = True
+    notify_on_gate_fail: bool = True
+
     class Config:
         env_prefix = "CORTEX_"
         env_file = ".env"
