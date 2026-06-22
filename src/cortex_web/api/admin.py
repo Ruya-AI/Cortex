@@ -39,9 +39,12 @@ async def update_github_settings(data: GitHubSettings, db: AsyncSession = Depend
     if data.token:
         await AdminSettings.set(db, "github.token", data.token, category="github", description="GitHub Personal Access Token")
     if data.api_url:
-        await AdminSettings.set(db, "github.api_url", data.api_url, category="github", description="GitHub API URL")
+        api_url = data.api_url.rstrip("/")
+        if api_url == "https://github.com":
+            api_url = "https://api.github.com"
+        await AdminSettings.set(db, "github.api_url", api_url, category="github", description="GitHub API URL")
     if data.org_name is not None:
-        await AdminSettings.set(db, "github.org_name", data.org_name, category="github", description="GitHub Organization or User name")
+        await AdminSettings.set(db, "github.org_name", data.org_name.strip(), category="github", description="GitHub Organization or User name")
     await db.commit()
     return {"status": "updated"}
 
