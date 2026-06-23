@@ -276,7 +276,7 @@ def _register_tools(runner):
         "prettier_tool.PrettierTool",
         "stylelint_tool.StylelintTool",
         "osv_scanner_tool.OsvScannerTool",
-        "trivy_tool.TrivyTool",
+        # trivy_tool.TrivyTool removed — RepoScannerTool runs Trivy repo-wide
         "dead_code_tool.DeadCodeTool",
         "interface_checker.InterfaceCheckerTool",
         "migration_checker.MigrationCheckerTool",

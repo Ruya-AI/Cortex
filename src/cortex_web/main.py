@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
         async with async_session() as db:
             result = await db.execute(
                 update(QAExecution)
-                .where(QAExecution.status == "running")
+                .where(QAExecution.status.in_(["running", "pending"]))
                 .values(status="failed", error_message="Server restarted during scan", completed_at=datetime.utcnow())
             )
             if result.rowcount > 0:
@@ -88,8 +88,8 @@ async def _stale_execution_reaper():
                 cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
                 result = await db.execute(
                     select(QAExecution).where(
-                        QAExecution.status == "running",
-                        QAExecution.started_at < cutoff,
+                        QAExecution.status.in_(["running", "pending"]),
+                        QAExecution.created_at < cutoff,
                     )
                 )
                 stale = result.scalars().all()

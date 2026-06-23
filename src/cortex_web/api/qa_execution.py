@@ -85,26 +85,19 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)):
 
 async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers, cost_limit):
     """Run QA scan in background and update the execution record."""
-    import asyncio
-    import os
-    import sys
-    import traceback
     from cortex_web.database import async_session
-    from cortex_web.api.ws import broadcast_progress
-    from cortex_web.services.admin_settings import AdminSettings
 
-    print(f"[BG] Background task started for {execution_id[:8]}", flush=True, file=sys.stderr)
+    logger.info("Background QA task started for %s", execution_id[:8])
 
     try:
         await _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_limit)
     except Exception as e:
-        print(f"[BG] TOP-LEVEL ERROR in background task: {e}", flush=True, file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+        logger.error("Background QA task crashed for %s: %s", execution_id[:8], e, exc_info=True)
         try:
             async with async_session() as db:
                 result = await db.execute(select(QAExecution).where(QAExecution.id == execution_id))
                 execution = result.scalar_one_or_none()
-                if execution and execution.status == "running":
+                if execution and execution.status in ("running", "pending"):
                     execution.status = "failed"
                     execution.error_message = f"Background task crashed: {e}"
                     execution.completed_at = datetime.utcnow()
@@ -119,15 +112,11 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
     from cortex_web.database import async_session
     from cortex_web.api.ws import broadcast_progress
     from cortex_web.services.admin_settings import AdminSettings
-    import sys
 
     loop = asyncio.get_running_loop()
-    print(f"[BG] Got loop, loading LLM config...", flush=True, file=sys.stderr)
 
-    # Load LLM settings from DB and inject as env vars before scan
     async with async_session() as settings_db:
         llm_config = await AdminSettings.get_group(settings_db, "llm.")
-    print(f"[BG] LLM config loaded, provider={llm_config.get('llm.provider','?')}", flush=True, file=sys.stderr)
     db_cost_limit = float(llm_config.get("llm.cost_limit", "0"))
     if not cost_limit and db_cost_limit > 0:
         cost_limit = db_cost_limit
@@ -153,7 +142,7 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
             os.environ["QA_LLM_MAX_RETRIES"] = llm_config.get("llm.max_retries", "3")
 
     def on_progress(message: str):
-        print(f"[BG] Progress [{execution_id[:8]}]: {message}", flush=True, file=sys.stderr)
+        logger.info("QA progress [%s]: %s", execution_id[:8], message)
         fut = asyncio.run_coroutine_threadsafe(
             broadcast_progress(execution_id, {"type": "progress", "message": message, "repository_url": repo_url}),
             loop,
@@ -163,29 +152,23 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
         except Exception:
             pass
 
-    print(f"[BG] Opening DB session...", flush=True, file=sys.stderr)
     async with async_session() as db:
         result = await db.execute(select(QAExecution).where(QAExecution.id == execution_id))
         execution = result.scalar_one_or_none()
         if not execution:
-            print(f"[BG] Execution not found in DB!", flush=True, file=sys.stderr)
             return
 
         execution.status = "running"
         execution.started_at = datetime.utcnow()
         await db.commit()
-        print(f"[BG] Status set to running", flush=True, file=sys.stderr)
 
         await broadcast_progress(execution_id, {
             "type": "status", "status": "running", "repository_url": repo_url,
         })
-        print(f"[BG] Broadcast sent, starting scan...", flush=True, file=sys.stderr)
 
         try:
             _apply_llm_env()
-            print(f"[BG] LLM env applied, creating bridge...", flush=True, file=sys.stderr)
             bridge = QABridge()
-            print(f"[BG] Bridge created, calling run_scan_async...", flush=True, file=sys.stderr)
             scan_result = await bridge.run_scan_async(
                 repo_url=repo_url,
                 branch=branch,

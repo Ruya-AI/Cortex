@@ -214,13 +214,14 @@ class ScanOrchestrator:
                 "pr_number": request.pr_number,
                 "remote_url": repo_context.remote_url if repo_context else "",
                 "commit_sha": repo_context.commit_sha if repo_context else "",
-                "skip_summary": file_set.skip_summary if hasattr(file_set, 'skip_summary') else {},
+                "skip_summary": file_set.skip_summary,
             }
 
             json_path = None
             pdf_path = None
             exec_json_path = None
             exec_pdf_path = None
+            report_result = None
 
             if self._report_generator:
                 _progress("Generating reports...")

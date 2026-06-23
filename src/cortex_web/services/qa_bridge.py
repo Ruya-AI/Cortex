@@ -28,11 +28,8 @@ class QABridge:
         Returns a dict with scan results (not ScanResult dataclass,
         to avoid coupling web layer to QA platform internals).
         """
-        import sys
-        print(f"[BRIDGE] run_scan started, repo={repo_url}", flush=True, file=sys.stderr)
         from qa_platform.core.schemas import ScanRequest
         from qa_platform.cli.run import _build_orchestrator
-        print(f"[BRIDGE] Imports done, building request...", flush=True, file=sys.stderr)
 
         request = ScanRequest(
             repo=repo_url,
@@ -45,9 +42,7 @@ class QABridge:
             full_scan=pr_number is None,
         )
 
-        print(f"[BRIDGE] Building orchestrator...", flush=True, file=sys.stderr)
         orchestrator = _build_orchestrator(request)
-        print(f"[BRIDGE] Orchestrator built, starting scan...", flush=True, file=sys.stderr)
 
         log_lines = []
 

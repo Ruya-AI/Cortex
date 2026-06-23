@@ -198,6 +198,12 @@ async def update_llm_settings(data: LLMSettings, db: AsyncSession = Depends(get_
 class QASettings(BaseModel):
     stale_execution_timeout_minutes: int = 60
 
+    def model_post_init(self, __context):
+        if self.stale_execution_timeout_minutes < 5:
+            self.stale_execution_timeout_minutes = 5
+        elif self.stale_execution_timeout_minutes > 1440:
+            self.stale_execution_timeout_minutes = 1440
+
 @router.get("/qa")
 async def get_qa_settings(db: AsyncSession = Depends(get_db)):
     timeout = await AdminSettings.get(db, "qa.stale_execution_timeout_minutes", "60")

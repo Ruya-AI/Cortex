@@ -129,7 +129,7 @@ class RepoScannerTool(Tier1Tool):
                     "--skip-db-update",
                     str(repo_path),
                 ],
-                capture_output=True, text=True, timeout=300,
+                capture_output=True, text=True, timeout=120,
                 cwd=str(repo_path),
             )
         except subprocess.TimeoutExpired:
