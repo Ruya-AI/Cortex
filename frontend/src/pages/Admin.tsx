@@ -164,6 +164,20 @@ export function Admin() {
   const [linearConfigured, setLinearConfigured] = useState(false);
   const [linearMsg, setLinearMsg] = useState('');
 
+  // --- LLM Settings ---
+  const [llmProvider, setLlmProvider] = useState('vertex_ai');
+  const [llmApiKey, setLlmApiKey] = useState('');
+  const [llmPrimaryModel, setLlmPrimaryModel] = useState('claude-opus-4-6');
+  const [llmFallbackModel, setLlmFallbackModel] = useState('claude-sonnet-4-6');
+  const [llmVertexProjectId, setLlmVertexProjectId] = useState('');
+  const [llmVertexRegion, setLlmVertexRegion] = useState('global');
+  const [llmMaxTokens, setLlmMaxTokens] = useState(8192);
+  const [llmTemperature, setLlmTemperature] = useState(0.0);
+  const [llmMaxRetries, setLlmMaxRetries] = useState(3);
+  const [llmCostLimit, setLlmCostLimit] = useState(0.0);
+  const [llmConfigured, setLlmConfigured] = useState(false);
+  const [llmMsg, setLlmMsg] = useState('');
+
   // --- Notification Settings ---
   const [slackWebhook, setSlackWebhook] = useState('');
   const [notifEmail, setNotifEmail] = useState('');
@@ -212,6 +226,24 @@ export function Admin() {
       })
       .catch(() => {});
 
+    // LLM settings
+    fetchApi<Record<string, unknown>>('/api/admin/llm')
+      .then(data => {
+        if (data) {
+          setLlmProvider((data.provider as string) || 'vertex_ai');
+          setLlmPrimaryModel((data.primary_model as string) || 'claude-opus-4-6');
+          setLlmFallbackModel((data.fallback_model as string) || 'claude-sonnet-4-6');
+          setLlmVertexProjectId((data.vertex_project_id as string) || '');
+          setLlmVertexRegion((data.vertex_region as string) || 'global');
+          setLlmMaxTokens((data.max_tokens as number) ?? 8192);
+          setLlmTemperature((data.temperature as number) ?? 0.0);
+          setLlmMaxRetries((data.max_retries as number) ?? 3);
+          setLlmCostLimit((data.cost_limit as number) ?? 0.0);
+          setLlmConfigured((data.is_configured as boolean) ?? false);
+        }
+      })
+      .catch(() => {});
+
     // Notification settings
     fetchApi<Record<string, unknown>>('/api/admin/notifications')
       .then(data => {
@@ -250,6 +282,31 @@ export function Admin() {
         setGhToken('');
       })
       .catch(() => setGhMsg('Failed to save GitHub settings.'));
+  };
+
+  const saveLLM = () => {
+    setLlmMsg('');
+    fetchApi('/api/admin/llm', {
+      method: 'PUT',
+      body: JSON.stringify({
+        provider: llmProvider,
+        api_key: llmApiKey || undefined,
+        primary_model: llmPrimaryModel,
+        fallback_model: llmFallbackModel,
+        vertex_project_id: llmVertexProjectId,
+        vertex_region: llmVertexRegion,
+        max_tokens: llmMaxTokens,
+        temperature: llmTemperature,
+        max_retries: llmMaxRetries,
+        cost_limit: llmCostLimit,
+      }),
+    })
+      .then(() => {
+        setLlmMsg('LLM settings saved.');
+        setLlmConfigured(true);
+        setLlmApiKey('');
+      })
+      .catch(() => setLlmMsg('Failed to save LLM settings.'));
   };
 
   const saveLinear = () => {
@@ -366,7 +423,92 @@ export function Admin() {
         {ghMsg && <p style={msgStyle(ghMsg)}>{ghMsg}</p>}
       </div>
 
-      {/* ===== Section 2: Linear Settings ===== */}
+      {/* ===== Section 2: LLM Settings ===== */}
+      <div style={cardStyle}>
+        <h3 style={headingStyle}>
+          LLM Settings
+          <span style={statusBadge(llmConfigured)}>
+            {llmConfigured ? 'Configured' : 'Not configured'}
+          </span>
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Provider</label>
+            <select style={selectStyle} value={llmProvider} onChange={e => setLlmProvider(e.target.value)}>
+              <option value="vertex_ai">Google Vertex AI (ADC)</option>
+              <option value="anthropic">Anthropic Direct API</option>
+            </select>
+          </div>
+          {llmProvider === 'anthropic' && (
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>API Key</label>
+              <input style={inputStyle} type="password" value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
+                placeholder={llmConfigured ? '(unchanged)' : 'sk-ant-...'} />
+            </div>
+          )}
+          {llmProvider === 'vertex_ai' && (
+            <>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>GCP Project ID</label>
+                <input style={inputStyle} value={llmVertexProjectId} onChange={e => setLlmVertexProjectId(e.target.value)}
+                  placeholder="e.g. my-gcp-project" />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Region</label>
+                <select style={selectStyle} value={llmVertexRegion} onChange={e => setLlmVertexRegion(e.target.value)}>
+                  <option value="global">global</option>
+                  <option value="us-east5">us-east5</option>
+                  <option value="us-central1">us-central1</option>
+                  <option value="europe-west1">europe-west1</option>
+                  <option value="europe-west4">europe-west4</option>
+                  <option value="asia-southeast1">asia-southeast1</option>
+                </select>
+              </div>
+            </>
+          )}
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Primary Model</label>
+            <select style={selectStyle} value={llmPrimaryModel} onChange={e => setLlmPrimaryModel(e.target.value)}>
+              <option value="claude-opus-4-6">Claude Opus 4.6</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+            </select>
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Fallback Model</label>
+            <select style={selectStyle} value={llmFallbackModel} onChange={e => setLlmFallbackModel(e.target.value)}>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-opus-4-6">Claude Opus 4.6</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+              <option value="">None</option>
+            </select>
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Max Tokens</label>
+            <input style={inputStyle} type="number" min={1024} max={32768} value={llmMaxTokens}
+              onChange={e => setLlmMaxTokens(Number(e.target.value))} />
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Temperature</label>
+            <input style={inputStyle} type="number" min={0} max={1} step={0.1} value={llmTemperature}
+              onChange={e => setLlmTemperature(Number(e.target.value))} />
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Max Retries</label>
+            <input style={inputStyle} type="number" min={0} max={10} value={llmMaxRetries}
+              onChange={e => setLlmMaxRetries(Number(e.target.value))} />
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Cost Limit (USD per scan, 0 = unlimited)</label>
+            <input style={inputStyle} type="number" min={0} step={0.5} value={llmCostLimit}
+              onChange={e => setLlmCostLimit(Number(e.target.value))} />
+          </div>
+        </div>
+        <button style={buttonStyle} onClick={saveLLM}>Save LLM Settings</button>
+        {llmMsg && <p style={msgStyle(llmMsg)}>{llmMsg}</p>}
+      </div>
+
+      {/* ===== Section 3: Linear Settings ===== */}
       <div style={cardStyle}>
         <h3 style={headingStyle}>
           Linear Settings

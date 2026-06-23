@@ -144,6 +144,55 @@ async def update_notification_settings(data: NotificationSettings, db: AsyncSess
     return {"status": "updated"}
 
 
+# -- LLM Settings --
+
+class LLMSettings(BaseModel):
+    provider: str = "vertex_ai"
+    api_key: str | None = None
+    primary_model: str = "claude-opus-4-6"
+    fallback_model: str = "claude-sonnet-4-6"
+    vertex_project_id: str = ""
+    vertex_region: str = "global"
+    max_tokens: int = 8192
+    temperature: float = 0.0
+    max_retries: int = 3
+    cost_limit: float = 0.0
+
+@router.get("/llm")
+async def get_llm_settings(db: AsyncSession = Depends(get_db)):
+    config = await AdminSettings.get_group(db, "llm.")
+    api_key = config.get("llm.api_key", "")
+    return {
+        "provider": config.get("llm.provider", "vertex_ai"),
+        "api_key": "****" + api_key[-4:] if len(api_key) > 4 else ("" if not api_key else "****"),
+        "primary_model": config.get("llm.primary_model", "claude-opus-4-6"),
+        "fallback_model": config.get("llm.fallback_model", "claude-sonnet-4-6"),
+        "vertex_project_id": config.get("llm.vertex_project_id", ""),
+        "vertex_region": config.get("llm.vertex_region", "global"),
+        "max_tokens": int(config.get("llm.max_tokens", "8192")),
+        "temperature": float(config.get("llm.temperature", "0.0")),
+        "max_retries": int(config.get("llm.max_retries", "3")),
+        "cost_limit": float(config.get("llm.cost_limit", "0.0")),
+        "is_configured": bool(api_key or config.get("llm.vertex_project_id", "")),
+    }
+
+@router.put("/llm")
+async def update_llm_settings(data: LLMSettings, db: AsyncSession = Depends(get_db)):
+    await AdminSettings.set(db, "llm.provider", data.provider, "llm", "LLM Provider (vertex_ai or anthropic)")
+    if data.api_key:
+        await AdminSettings.set(db, "llm.api_key", data.api_key, "llm", "Anthropic API Key")
+    await AdminSettings.set(db, "llm.primary_model", data.primary_model, "llm", "Primary model ID")
+    await AdminSettings.set(db, "llm.fallback_model", data.fallback_model, "llm", "Fallback model ID")
+    await AdminSettings.set(db, "llm.vertex_project_id", data.vertex_project_id, "llm", "GCP Project ID for Vertex AI")
+    await AdminSettings.set(db, "llm.vertex_region", data.vertex_region, "llm", "Vertex AI region")
+    await AdminSettings.set(db, "llm.max_tokens", str(data.max_tokens), "llm", "Max tokens per LLM call")
+    await AdminSettings.set(db, "llm.temperature", str(data.temperature), "llm", "Temperature (0.0 = deterministic)")
+    await AdminSettings.set(db, "llm.max_retries", str(data.max_retries), "llm", "Max retries on transient errors")
+    await AdminSettings.set(db, "llm.cost_limit", str(data.cost_limit), "llm", "Default cost limit per scan (0 = unlimited)")
+    await db.commit()
+    return {"status": "updated"}
+
+
 # -- General Settings --
 
 @router.get("/settings")

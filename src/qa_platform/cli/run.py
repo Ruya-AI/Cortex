@@ -313,17 +313,24 @@ def _build_agent_infrastructure(request, cost_tracker):
     memory_loader = SemanticMemoryLoader()
 
     # Try to create LLM client
+    import os
+    primary_model = os.environ.get("QA_LLM_PRIMARY_MODEL", "claude-opus-4-6")
+    fallback_model = os.environ.get("QA_LLM_FALLBACK_MODEL", "claude-sonnet-4-6")
+    max_retries = int(os.environ.get("QA_LLM_MAX_RETRIES", "3"))
+
     llm_client = None
     validator_llm_client = None
     try:
         from qa_platform.infrastructure.llm_client import AnthropicLLMClient
         llm_client = AnthropicLLMClient(
-            primary_model="claude-opus-4-6",
-            fallback_models=["claude-sonnet-4-6"],
+            primary_model=primary_model,
+            fallback_models=[fallback_model] if fallback_model else [],
+            max_retries=max_retries,
         )
         validator_llm_client = AnthropicLLMClient(
-            primary_model="claude-opus-4-6",
-            fallback_models=["claude-sonnet-4-6"],
+            primary_model=primary_model,
+            fallback_models=[fallback_model] if fallback_model else [],
+            max_retries=max_retries,
         )
     except Exception as e:
         logging.getLogger(__name__).warning("LLM client init failed: %s", e)

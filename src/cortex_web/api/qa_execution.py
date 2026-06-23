@@ -84,10 +84,36 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)):
 async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers, cost_limit):
     """Run QA scan in background and update the execution record."""
     import asyncio
+    import os
     from cortex_web.database import async_session
     from cortex_web.api.ws import broadcast_progress
+    from cortex_web.services.admin_settings import AdminSettings
 
     loop = asyncio.get_running_loop()
+
+    # Load LLM settings from DB and inject as env vars before scan
+    async with async_session() as settings_db:
+        llm_config = await AdminSettings.get_group(settings_db, "llm.")
+    provider = llm_config.get("llm.provider", "vertex_ai")
+    if provider == "vertex_ai":
+        os.environ["CLAUDE_CODE_USE_VERTEX"] = "1"
+        project_id = llm_config.get("llm.vertex_project_id", "")
+        if project_id:
+            os.environ["ANTHROPIC_VERTEX_PROJECT_ID"] = project_id
+        region = llm_config.get("llm.vertex_region", "global")
+        os.environ["CLOUD_ML_REGION"] = region
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+    else:
+        os.environ.pop("CLAUDE_CODE_USE_VERTEX", None)
+        api_key = llm_config.get("llm.api_key", "")
+        if api_key:
+            os.environ["ANTHROPIC_API_KEY"] = api_key
+    os.environ["QA_LLM_PRIMARY_MODEL"] = llm_config.get("llm.primary_model", "claude-opus-4-6")
+    os.environ["QA_LLM_FALLBACK_MODEL"] = llm_config.get("llm.fallback_model", "claude-sonnet-4-6")
+    os.environ["QA_LLM_MAX_RETRIES"] = llm_config.get("llm.max_retries", "3")
+    db_cost_limit = float(llm_config.get("llm.cost_limit", "0"))
+    if not cost_limit and db_cost_limit > 0:
+        cost_limit = db_cost_limit
 
     def on_progress(message: str):
         logger.info("QA progress [%s]: %s", execution_id[:8], message)
