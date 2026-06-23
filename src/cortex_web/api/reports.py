@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +36,34 @@ async def get_report_info(execution_id: str, db: AsyncSession = Depends(get_db))
             "executive_pdf": execution.executive_pdf_path or None,
         },
     }
+
+
+@router.get("/{execution_id}/content/{report_type}")
+async def get_report_content(execution_id: str, report_type: str, db: AsyncSession = Depends(get_db)):
+    """Return JSON report content for in-browser viewing."""
+    result = await db.execute(select(QAExecution).where(QAExecution.id == execution_id))
+    execution = result.scalar_one_or_none()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    path_map = {
+        "full": execution.report_json_path,
+        "executive": execution.executive_json_path,
+    }
+    file_path = path_map.get(report_type)
+    if not file_path:
+        raise HTTPException(status_code=400, detail=f"Unknown report type: {report_type}. Use 'full' or 'executive'.")
+
+    path = Path(file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Report file not found on disk")
+
+    try:
+        data = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read report: {e}")
+
+    return JSONResponse(content=data)
 
 
 @router.get("/{execution_id}/download/{report_type}")
