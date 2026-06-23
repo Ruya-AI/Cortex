@@ -59,6 +59,8 @@ class FileSet:
     reviewable_files: list[str] = field(default_factory=list)
     skipped_binary: list[str] = field(default_factory=list)
     skipped_large: list[str] = field(default_factory=list)
+    skipped_excluded: list[str] = field(default_factory=list)
+    skipped_hidden: list[str] = field(default_factory=list)
     flagged_files: list[str] = field(default_factory=list)
     hygiene_findings: list[Finding] = field(default_factory=list)
     privacy_excluded: list[str] = field(default_factory=list)

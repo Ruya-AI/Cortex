@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import PurePosixPath
 
 from qa_platform.core.finding import (
     Confidence,
@@ -13,10 +14,6 @@ from qa_platform.core.schemas import ChangeSet, FileSet, RepositoryContext
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Well-known binary extensions
-# ---------------------------------------------------------------------------
-
 BINARY_EXTENSIONS: frozenset[str] = frozenset(
     {
         ".pyc", ".pyo", ".exe", ".dll", ".so", ".dylib", ".o", ".a",
@@ -25,36 +22,44 @@ BINARY_EXTENSIONS: frozenset[str] = frozenset(
         ".woff", ".woff2", ".ttf", ".eot",
         ".mp3", ".mp4", ".avi", ".mov",
         ".zip", ".tar", ".gz", ".jar", ".war", ".class",
-        ".pdf",
+        ".pdf", ".whl", ".egg",
     }
 )
 
-# ---------------------------------------------------------------------------
-# Paths that should be flagged during hygiene checks
-# ---------------------------------------------------------------------------
+EXCLUDED_DIRECTORIES: frozenset[str] = frozenset(
+    {
+        ".venv", "venv", "node_modules", "__pycache__", "dist", "build",
+        ".egg-info", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        "vendor", "bower_components", ".git", "site-packages",
+    }
+)
 
-FLAGGED_PATH_PATTERNS: list[str] = [
-    "node_modules/",
-    ".env",
-    "__pycache__/",
-    ".git/",
-    ".DS_Store",
-    "venv/",
-    ".venv/",
-    "dist/",
-    "build/",
-    ".egg-info/",
-]
+SENSITIVE_FILES: frozenset[str] = frozenset(
+    {
+        ".env", ".env.local", ".env.production", ".env.staging",
+        ".DS_Store", "Thumbs.db",
+    }
+)
 
-
-# ---------------------------------------------------------------------------
-# FindingFactory -- lightweight helper for creating hygiene findings
-# ---------------------------------------------------------------------------
+HIDDEN_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        ".gitignore", ".gitattributes", ".gitmodules",
+        ".github", ".gitlab-ci.yml", ".gitlab",
+        ".dockerignore", ".docker",
+        ".editorconfig", ".flake8", ".pylintrc",
+        ".pre-commit-config.yaml", ".pre-commit-hooks.yaml",
+        ".prettierrc", ".prettierignore",
+        ".eslintrc", ".eslintrc.json", ".eslintrc.js", ".eslintignore",
+        ".babelrc", ".browserslistrc",
+        ".npmrc", ".npmignore", ".yarnrc",
+        ".python-version", ".node-version", ".nvmrc", ".ruby-version",
+        ".tool-versions",
+        ".coveragerc", ".flake8",
+    }
+)
 
 
 class FindingFactory:
-    """Create standardised Finding objects for hygiene issues."""
-
     _counter: int = 0
 
     @classmethod
@@ -89,17 +94,16 @@ class FindingFactory:
         )
 
 
-# ---------------------------------------------------------------------------
-# HygieneChecker
-# ---------------------------------------------------------------------------
-
-
 class HygieneChecker:
     """Filter files into reviewable vs. skipped and flag hygiene issues.
 
-    * Binary files: skip + flag.
-    * Flagged text files (node_modules, .env, etc.): flag + still scan.
-    * Large files (over config threshold): skip + flag.
+    Exclusion priority:
+    1. Binary files → skip
+    2. Files in excluded directories (.venv, node_modules, etc.) → skip
+    3. Sensitive files (.env, .DS_Store) → skip
+    4. Hidden files (dotfiles not in allowlist) → skip
+    5. Large files → skip
+    6. Everything else → reviewable
     """
 
     def check(
@@ -108,20 +112,6 @@ class HygieneChecker:
         change_set: ChangeSet,
         config: dict,
     ) -> FileSet:
-        """Classify every changed file and return a FileSet.
-
-        Parameters
-        ----------
-        context:
-            Repository metadata (provides ``local_path``).
-        change_set:
-            The set of files detected as changed.
-        config:
-            Dict with optional keys:
-            - ``max_file_size_kb`` (int): threshold in KiB (default 10240).
-            - ``extra_binary_extensions`` (list[str]): additional extensions
-              to treat as binary.
-        """
         FindingFactory.reset()
 
         max_size_kb: int = config.get("max_file_size_kb", 10240)
@@ -134,20 +124,72 @@ class HygieneChecker:
             fp = fc.file_path
             ext = _file_extension(fp)
 
-            # --- Binary? ------------------------------------------------
+            # 1. Binary
             if ext in all_binary:
                 file_set.skipped_binary.append(fp)
                 file_set.hygiene_findings.append(
                     FindingFactory.create(
                         file_path=fp,
-                        title="Binary file in changeset",
-                        explanation=f"Binary file ({ext}) skipped from review.",
+                        title="Binary file skipped",
+                        explanation=f"Binary file ({ext}) excluded from review.",
                         severity=Severity.INFO,
                     )
                 )
                 continue
 
-            # --- Large? -------------------------------------------------
+            # 2. Excluded directory
+            excluded_dir = _matches_excluded_dir(fp)
+            if excluded_dir:
+                file_set.skipped_excluded.append(fp)
+                file_set.hygiene_findings.append(
+                    FindingFactory.create(
+                        file_path=fp,
+                        title=f"File in excluded directory ({excluded_dir}/)",
+                        explanation=(
+                            f"File is inside '{excluded_dir}/' which contains "
+                            f"packages, generated code, or cache. Excluded from "
+                            f"review to avoid scanning third-party code."
+                        ),
+                        severity=Severity.INFO,
+                    )
+                )
+                continue
+
+            # 3. Sensitive files
+            if _is_sensitive_file(fp):
+                file_set.skipped_excluded.append(fp)
+                file_set.hygiene_findings.append(
+                    FindingFactory.create(
+                        file_path=fp,
+                        title="Sensitive file skipped",
+                        explanation=(
+                            f"File '{_basename(fp)}' is a sensitive or system "
+                            f"file that should not be in version control. "
+                            f"Skipped from review."
+                        ),
+                        severity=Severity.MEDIUM,
+                    )
+                )
+                continue
+
+            # 4. Hidden files not in allowlist
+            if _is_hidden_file(fp) and not _is_hidden_allowed(fp):
+                file_set.skipped_hidden.append(fp)
+                file_set.hygiene_findings.append(
+                    FindingFactory.create(
+                        file_path=fp,
+                        title="Hidden file skipped",
+                        explanation=(
+                            f"Hidden file '{_basename(fp)}' (starts with '.') "
+                            f"skipped from review. Hidden files are excluded by "
+                            f"default unless explicitly allowlisted."
+                        ),
+                        severity=Severity.INFO,
+                    )
+                )
+                continue
+
+            # 5. Large files
             abs_path = context.local_path / fp
             if abs_path.exists():
                 try:
@@ -169,62 +211,68 @@ class HygieneChecker:
                     )
                     continue
 
-            # --- Flagged path? ------------------------------------------
-            is_flagged = _matches_flagged_pattern(fp)
-            if is_flagged:
-                file_set.flagged_files.append(fp)
-                file_set.hygiene_findings.append(
-                    FindingFactory.create(
-                        file_path=fp,
-                        title="File in flagged path",
-                        explanation=(
-                            f"File matches a flagged path pattern "
-                            f"({is_flagged}). Included in review but flagged."
-                        ),
-                        severity=Severity.LOW,
-                    )
-                )
-                # Flagged files are still reviewable
-                file_set.reviewable_files.append(fp)
-                continue
-
-            # --- Normal reviewable file ---------------------------------
+            # 6. Normal reviewable file
             file_set.reviewable_files.append(fp)
+
+        skipped_total = (
+            len(file_set.skipped_binary)
+            + len(file_set.skipped_large)
+            + len(file_set.skipped_excluded)
+            + len(file_set.skipped_hidden)
+        )
+        if skipped_total > 0:
+            logger.info(
+                "Hygiene: %d reviewable, %d skipped (binary=%d, excluded=%d, hidden=%d, large=%d)",
+                len(file_set.reviewable_files),
+                skipped_total,
+                len(file_set.skipped_binary),
+                len(file_set.skipped_excluded),
+                len(file_set.skipped_hidden),
+                len(file_set.skipped_large),
+            )
 
         return file_set
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _file_extension(path: str) -> str:
-    """Return the lowercase file extension including the dot, e.g. '.py'."""
     _, ext = os.path.splitext(path)
     return ext.lower()
 
 
-def _matches_flagged_pattern(path: str) -> str:
-    """Return the matching pattern string if *path* matches, else ''."""
-    for pattern in FLAGGED_PATH_PATTERNS:
-        if pattern.endswith("/"):
-            # Directory pattern -- check if any component matches
-            if pattern.rstrip("/") in path.split("/"):
-                return pattern
-            # Also match if the path contains the pattern substring
-            if pattern in path:
-                return pattern
-        else:
-            # Exact filename or suffix
-            basename = path.rsplit("/", 1)[-1] if "/" in path else path
-            if pattern.startswith("*."):
-                # Glob-style suffix
-                if basename.endswith(pattern[1:]):
-                    return pattern
-            elif basename == pattern or path.endswith("/" + pattern):
-                return pattern
-            # Also match the pattern anywhere in the path
-            if pattern in path:
-                return pattern
+def _basename(path: str) -> str:
+    return path.rsplit("/", 1)[-1] if "/" in path else path
+
+
+def _matches_excluded_dir(path: str) -> str:
+    parts = PurePosixPath(path).parts
+    for part in parts[:-1]:
+        clean = part.rstrip("/")
+        if clean in EXCLUDED_DIRECTORIES:
+            return clean
+        if clean.endswith(".egg-info"):
+            return clean
     return ""
+
+
+def _is_sensitive_file(path: str) -> bool:
+    name = _basename(path)
+    return name in SENSITIVE_FILES
+
+
+def _is_hidden_file(path: str) -> bool:
+    parts = PurePosixPath(path).parts
+    for part in parts:
+        if part.startswith(".") and part not in (".", ".."):
+            return True
+    return False
+
+
+def _is_hidden_allowed(path: str) -> bool:
+    parts = PurePosixPath(path).parts
+    for part in parts:
+        if part.startswith("."):
+            if part in HIDDEN_ALLOWLIST:
+                return True
+            if any(part.startswith(a.rstrip("/")) for a in HIDDEN_ALLOWLIST if a.endswith("/")):
+                return True
+    return False

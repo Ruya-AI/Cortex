@@ -284,6 +284,7 @@ def _register_tools(runner):
         "test_coverage_gap.TestCoverageGapTool",
         "version_drift_tool.VersionDriftTool",
         "unused_module_tool.UnusedModuleTool",
+        "repo_scanner_tool.RepoScannerTool",
     ]
     for tool_ref in optional_tools:
         module_name, class_name = tool_ref.rsplit(".", 1)
