@@ -59,7 +59,9 @@ HIDDEN_ALLOWLIST: frozenset[str] = frozenset(
 )
 
 
-class FindingFactory:
+class _FindingFactory:
+    """Create standardised Finding objects for reportable hygiene issues."""
+
     _counter: int = 0
 
     @classmethod
@@ -95,15 +97,13 @@ class FindingFactory:
 
 
 class HygieneChecker:
-    """Filter files into reviewable vs. skipped and flag hygiene issues.
+    """Filter files into reviewable vs. skipped.
 
-    Exclusion priority:
-    1. Binary files → skip
-    2. Files in excluded directories (.venv, node_modules, etc.) → skip
-    3. Sensitive files (.env, .DS_Store) → skip
-    4. Hidden files (dotfiles not in allowlist) → skip
-    5. Large files → skip
-    6. Everything else → reviewable
+    Routine skips (binary, excluded dirs, hidden files) are tracked as
+    counts in ``FileSet.skip_summary`` — NOT as individual Finding objects.
+
+    Only actionable hygiene issues (sensitive files found in repo) produce
+    Finding objects in ``FileSet.hygiene_findings``.
     """
 
     def check(
@@ -112,84 +112,64 @@ class HygieneChecker:
         change_set: ChangeSet,
         config: dict,
     ) -> FileSet:
-        FindingFactory.reset()
+        _FindingFactory.reset()
 
         max_size_kb: int = config.get("max_file_size_kb", 10240)
         extra_binary: set[str] = set(config.get("extra_binary_extensions", []))
         all_binary = BINARY_EXTENSIONS | extra_binary
 
         file_set = FileSet()
+        skip_counts: dict[str, int] = {
+            "binary": 0,
+            "excluded_directory": 0,
+            "sensitive_file": 0,
+            "hidden_file": 0,
+            "large_file": 0,
+        }
+        excluded_dirs_seen: dict[str, int] = {}
 
         for fc in change_set.changed_files:
             fp = fc.file_path
             ext = _file_extension(fp)
 
-            # 1. Binary
+            # 1. Binary — skip, count only
             if ext in all_binary:
                 file_set.skipped_binary.append(fp)
-                file_set.hygiene_findings.append(
-                    FindingFactory.create(
-                        file_path=fp,
-                        title="Binary file skipped",
-                        explanation=f"Binary file ({ext}) excluded from review.",
-                        severity=Severity.INFO,
-                    )
-                )
+                skip_counts["binary"] += 1
                 continue
 
-            # 2. Excluded directory
+            # 2. Excluded directory — skip, count by directory name
             excluded_dir = _matches_excluded_dir(fp)
             if excluded_dir:
                 file_set.skipped_excluded.append(fp)
-                file_set.hygiene_findings.append(
-                    FindingFactory.create(
-                        file_path=fp,
-                        title=f"File in excluded directory ({excluded_dir}/)",
-                        explanation=(
-                            f"File is inside '{excluded_dir}/' which contains "
-                            f"packages, generated code, or cache. Excluded from "
-                            f"review to avoid scanning third-party code."
-                        ),
-                        severity=Severity.INFO,
-                    )
-                )
+                skip_counts["excluded_directory"] += 1
+                excluded_dirs_seen[excluded_dir] = excluded_dirs_seen.get(excluded_dir, 0) + 1
                 continue
 
-            # 3. Sensitive files
+            # 3. Sensitive files — skip + create a reportable finding
             if _is_sensitive_file(fp):
                 file_set.skipped_excluded.append(fp)
+                skip_counts["sensitive_file"] += 1
                 file_set.hygiene_findings.append(
-                    FindingFactory.create(
+                    _FindingFactory.create(
                         file_path=fp,
-                        title="Sensitive file skipped",
+                        title=f"Sensitive file in repository: {_basename(fp)}",
                         explanation=(
-                            f"File '{_basename(fp)}' is a sensitive or system "
-                            f"file that should not be in version control. "
-                            f"Skipped from review."
+                            f"'{_basename(fp)}' should not be in version control. "
+                            f"It may contain secrets, credentials, or system artifacts."
                         ),
                         severity=Severity.MEDIUM,
                     )
                 )
                 continue
 
-            # 4. Hidden files not in allowlist
+            # 4. Hidden files not in allowlist — skip, count only
             if _is_hidden_file(fp) and not _is_hidden_allowed(fp):
                 file_set.skipped_hidden.append(fp)
-                file_set.hygiene_findings.append(
-                    FindingFactory.create(
-                        file_path=fp,
-                        title="Hidden file skipped",
-                        explanation=(
-                            f"Hidden file '{_basename(fp)}' (starts with '.') "
-                            f"skipped from review. Hidden files are excluded by "
-                            f"default unless explicitly allowlisted."
-                        ),
-                        severity=Severity.INFO,
-                    )
-                )
+                skip_counts["hidden_file"] += 1
                 continue
 
-            # 5. Large files
+            # 5. Large files — skip, count only
             abs_path = context.local_path / fp
             if abs_path.exists():
                 try:
@@ -198,37 +178,32 @@ class HygieneChecker:
                     size_kb = 0.0
                 if size_kb > max_size_kb:
                     file_set.skipped_large.append(fp)
-                    file_set.hygiene_findings.append(
-                        FindingFactory.create(
-                            file_path=fp,
-                            title="File exceeds size threshold",
-                            explanation=(
-                                f"File is {size_kb:.0f} KiB, exceeding the "
-                                f"{max_size_kb} KiB limit. Skipped from review."
-                            ),
-                            severity=Severity.INFO,
-                        )
-                    )
+                    skip_counts["large_file"] += 1
                     continue
 
             # 6. Normal reviewable file
             file_set.reviewable_files.append(fp)
 
-        skipped_total = (
-            len(file_set.skipped_binary)
-            + len(file_set.skipped_large)
-            + len(file_set.skipped_excluded)
-            + len(file_set.skipped_hidden)
-        )
-        if skipped_total > 0:
+        # Build skip summary for report metadata
+        file_set.skip_summary = {
+            "total_skipped": sum(skip_counts.values()),
+            "counts": {k: v for k, v in skip_counts.items() if v > 0},
+            "excluded_directories": {k: v for k, v in excluded_dirs_seen.items() if v > 0},
+            "total_files_in_changeset": len(change_set.changed_files),
+            "reviewable_count": len(file_set.reviewable_files),
+        }
+
+        total_skipped = sum(skip_counts.values())
+        if total_skipped > 0:
             logger.info(
-                "Hygiene: %d reviewable, %d skipped (binary=%d, excluded=%d, hidden=%d, large=%d)",
+                "Hygiene: %d reviewable, %d skipped (binary=%d, excluded=%d, hidden=%d, large=%d, sensitive=%d)",
                 len(file_set.reviewable_files),
-                skipped_total,
-                len(file_set.skipped_binary),
-                len(file_set.skipped_excluded),
-                len(file_set.skipped_hidden),
-                len(file_set.skipped_large),
+                total_skipped,
+                skip_counts["binary"],
+                skip_counts["excluded_directory"],
+                skip_counts["hidden_file"],
+                skip_counts["large_file"],
+                skip_counts["sensitive_file"],
             )
 
         return file_set

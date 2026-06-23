@@ -276,7 +276,7 @@ class ReportGenerator:
 
         # Scope summary
         all_files = {f.file for f in findings if f.file}
-        skip_reasons: dict[str, int] = {}
+        skip_summary = scan_metadata.get("skip_summary", {})
 
         return {
             "report_metadata": {
@@ -307,8 +307,10 @@ class ReportGenerator:
             "scope_summary": {
                 "total_files": len(all_files),
                 "files_analyzed": len(all_files),
-                "files_skipped": 0,
-                "skip_reasons": skip_reasons,
+                "files_skipped": skip_summary.get("total_skipped", 0),
+                "skip_reasons": skip_summary.get("counts", {}),
+                "excluded_directories": skip_summary.get("excluded_directories", {}),
+                "total_files_in_changeset": skip_summary.get("total_files_in_changeset", len(all_files)),
                 "modules_covered": scan_metadata.get("modules_covered", []),
                 "tiers_executed": scan_metadata.get("tiers", []),
                 "agents_used": scan_metadata.get("agents_used", []),
