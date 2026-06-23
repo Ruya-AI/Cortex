@@ -142,6 +142,24 @@ async def fetch_prs(repo_id: str, db: AsyncSession = Depends(get_db)):
     return {"created": created_count, "updated": updated_count, "total_prs": len(prs_data)}
 
 
+@router.get("/repos/{repo_id}/commits")
+async def fetch_commits(repo_id: str, per_page: int = 30, branch: str | None = None, db: AsyncSession = Depends(get_db)):
+    """Fetch recent commits for a repository."""
+    result = await db.execute(select(RepositoryConfig).where(RepositoryConfig.id == repo_id))
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    token = await AdminSettings.get_github_token(db)
+    if not token:
+        raise HTTPException(status_code=400, detail="GitHub token not configured")
+
+    api_url = await AdminSettings.get_github_api_url(db)
+    service = GitHubService(token=token, api_url=api_url)
+    commits = await service.fetch_commits(repo.owner, repo.repo_name, branch=branch or repo.default_branch, per_page=per_page)
+    return {"commits": commits, "total": len(commits)}
+
+
 def _repo_to_dict(r: RepositoryConfig) -> dict:
     return {
         "id": r.id,

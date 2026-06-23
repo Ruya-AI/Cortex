@@ -24,6 +24,7 @@ export interface QAExecution {
   branch: string;
   commit_sha: string;
   tiers: string;
+  execution_type: string;
   trigger: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   finding_count: number;

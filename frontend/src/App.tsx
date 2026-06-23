@@ -1,19 +1,13 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
-import { Repositories } from './pages/Repositories';
-import { PullRequests } from './pages/PullRequests';
 import { QAExecutionPage } from './pages/QAExecution';
 import { Reports } from './pages/Reports';
-import { Analytics } from './pages/Analytics';
 import { Admin } from './pages/Admin';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '\u{1F4CA}' },
-  { path: '/repositories', label: 'Repositories', icon: '\u{1F4E6}' },
-  { path: '/pull-requests', label: 'Pull Requests', icon: '\u{1F500}' },
   { path: '/qa-execution', label: 'QA Execution', icon: '\u{1F50D}' },
   { path: '/reports', label: 'Reports', icon: '\u{1F4C4}' },
-  { path: '/analytics', label: 'Analytics', icon: '\u{1F4C8}' },
   { path: '/admin', label: 'Admin', icon: '⚙️' },
 ];
 
@@ -75,11 +69,8 @@ export default function App() {
         <main style={{ flex: 1, padding: '24px 32px', maxWidth: 'calc(100vw - 220px)', overflow: 'auto' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/repositories" element={<Repositories />} />
-            <Route path="/pull-requests" element={<PullRequests />} />
             <Route path="/qa-execution" element={<QAExecutionPage />} />
             <Route path="/reports" element={<Reports />} />
-            <Route path="/analytics" element={<Analytics />} />
             <Route path="/admin" element={<Admin />} />
           </Routes>
         </main>

@@ -95,6 +95,32 @@ class GitHubService:
                     break
         return all_repos
 
+    async def fetch_commits(self, owner: str, repo: str, branch: str | None = None, per_page: int = 30) -> list[dict]:
+        """Fetch recent commits for a repository."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            params: dict = {"per_page": per_page}
+            if branch:
+                params["sha"] = branch
+            response = await client.get(
+                f"{self._api_url}/repos/{owner}/{repo}/commits",
+                headers=self._headers,
+                params=params,
+            )
+            response.raise_for_status()
+            return [
+                {
+                    "sha": c["sha"],
+                    "short_sha": c["sha"][:7],
+                    "message": (c["commit"]["message"].split("\n")[0])[:120],
+                    "author": c["commit"]["author"]["name"],
+                    "author_login": c.get("author", {}).get("login", "") if c.get("author") else "",
+                    "author_avatar": c.get("author", {}).get("avatar_url", "") if c.get("author") else "",
+                    "date": c["commit"]["author"]["date"],
+                    "html_url": c["html_url"],
+                }
+                for c in response.json()
+            ]
+
     async def get_pr_details(self, owner: str, repo: str, pr_number: int) -> dict:
         """Fetch detailed PR information including file changes."""
         async with httpx.AsyncClient(timeout=30) as client:

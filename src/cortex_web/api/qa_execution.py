@@ -18,8 +18,10 @@ class QAExecutionRequest(BaseModel):
     repository_url: str
     branch: str | None = None
     pr_number: int | None = None
+    commit_sha: str | None = None
     tiers: list[int] = [1, 2]
     cost_limit: float | None = None
+    execution_type: str = "repository"
 
 @router.post("/execute")
 async def trigger_qa_execution(
@@ -27,11 +29,14 @@ async def trigger_qa_execution(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
+    branch = request.commit_sha or request.branch or ""
     execution = QAExecution(
         id=str(uuid.uuid4()),
         repository_url=request.repository_url,
-        branch=request.branch or "",
+        branch=branch,
+        commit_sha=request.commit_sha or "",
         tiers=",".join(str(t) for t in request.tiers),
+        execution_type=request.execution_type,
         trigger="web-ui",
         status="pending",
         created_at=datetime.utcnow(),
@@ -43,7 +48,7 @@ async def trigger_qa_execution(
         _run_qa_in_background,
         execution_id=execution.id,
         repo_url=request.repository_url,
-        branch=request.branch,
+        branch=branch or None,
         pr_number=request.pr_number,
         tiers=request.tiers,
         cost_limit=request.cost_limit,
@@ -54,11 +59,13 @@ async def trigger_qa_execution(
 @router.get("/executions")
 async def list_executions(
     limit: int = 20,
+    type: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(QAExecution).order_by(QAExecution.created_at.desc()).limit(limit)
-    )
+    query = select(QAExecution)
+    if type and type in ("repository", "pull_request", "commit"):
+        query = query.where(QAExecution.execution_type == type)
+    result = await db.execute(query.order_by(QAExecution.created_at.desc()).limit(limit))
     executions = result.scalars().all()
     return {"items": [_exec_to_dict(e) for e in executions]}
 
@@ -155,6 +162,7 @@ def _exec_to_dict(e: QAExecution) -> dict:
         "branch": e.branch,
         "commit_sha": e.commit_sha,
         "tiers": e.tiers,
+        "execution_type": e.execution_type,
         "trigger": e.trigger,
         "status": e.status,
         "finding_count": e.finding_count,

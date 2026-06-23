@@ -19,6 +19,7 @@ class QAExecution(Base):
 
     # Execution config
     tiers: Mapped[str] = mapped_column(String(20), default="1,2")
+    execution_type: Mapped[str] = mapped_column(String(20), default="repository")  # repository, pull_request, commit
     trigger: Mapped[str] = mapped_column(String(20), default="web-ui")  # web-ui, automated, webhook
 
     # Results
