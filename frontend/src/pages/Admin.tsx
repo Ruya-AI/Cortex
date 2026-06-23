@@ -228,7 +228,7 @@ export function Admin() {
         if (data) {
           setGhApiUrl(data.api_url || 'https://api.github.com');
           setGhOrgName(data.org_name || '');
-          setGhConfigured(data.configured ?? data.is_configured ?? false);
+          setGhConfigured((data.is_configured as boolean) ?? false);
         }
       })
       .catch(() => {});

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
+from dateutil.parser import isoparse
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -127,13 +128,20 @@ async def fetch_prs(repo_id: str, db: AsyncSession = Depends(get_db)):
             existing_pr.changed_files = pr_data.get("changed_files", 0)
             updated_count += 1
         else:
+            pr_row = {**pr_data}
+            for dt_field in ("github_created_at", "github_updated_at"):
+                if dt_field in pr_row and isinstance(pr_row[dt_field], str):
+                    try:
+                        pr_row[dt_field] = isoparse(pr_row[dt_field])
+                    except (ValueError, TypeError):
+                        pr_row[dt_field] = None
             pr = PullRequest(
                 id=str(uuid.uuid4()),
                 repository_config_id=repo_id,
                 owner=repo.owner,
                 repo_name=repo.repo_name,
-                **pr_data,
-                fetched_at=datetime.utcnow(),
+                **pr_row,
+                fetched_at=datetime.now(timezone.utc),
             )
             db.add(pr)
             created_count += 1

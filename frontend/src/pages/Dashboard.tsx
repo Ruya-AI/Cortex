@@ -31,7 +31,7 @@ interface PatternData {
   top_sources: Array<{ source: string; count: number }>;
 }
 
-const WS_URL = `ws://${window.location.hostname}:8000/ws/dashboard`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '8000')}/ws/dashboard`;
 
 const severityColors: Record<string, string> = {
   critical: '#dc3545', high: '#fd7e14', medium: '#ffc107', low: '#28a745', info: '#0d6efd',
@@ -62,31 +62,26 @@ export function Dashboard() {
       setExecutions(execData.items);
       setAnalytics(analyticsData);
       setPatterns(patternsData);
+      const running = execData.items.filter(e => e.status === 'running');
+      if (running.length > 0) {
+        setActive(prev => {
+          const next = new Map(prev);
+          for (const e of running) {
+            if (!next.has(e.id)) {
+              next.set(e.id, {
+                executionId: e.id, repo: repoName(e.repository_url),
+                status: 'running', messages: ['Scan in progress...'],
+                startedAt: e.started_at ? new Date(e.started_at).getTime() : Date.now(),
+              });
+            }
+          }
+          return next;
+        });
+      }
     }).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    loadData();
-    fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=10')
-      .then(data => {
-        const running = data.items.filter(e => e.status === 'running');
-        if (running.length > 0) {
-          setActive(prev => {
-            const next = new Map(prev);
-            for (const e of running) {
-              if (!next.has(e.id)) {
-                next.set(e.id, {
-                  executionId: e.id, repo: repoName(e.repository_url),
-                  status: 'running', messages: ['Scan in progress...'],
-                  startedAt: e.started_at ? new Date(e.started_at).getTime() : Date.now(),
-                });
-              }
-            }
-            return next;
-          });
-        }
-      }).catch(() => {});
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -279,7 +274,7 @@ export function Dashboard() {
                 <td style={{ padding: '10px' }}>
                   <span style={{ color: e.quality_gate_status === 'pass' ? '#28a745' : '#dc3545', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>{e.quality_gate_status || '—'}</span>
                 </td>
-                <td style={{ padding: '10px' }}>{e.duration_seconds > 0 ? `${e.duration_seconds.toFixed(0)}s` : '—'}</td>
+                <td style={{ padding: '10px' }}>{(e.duration_seconds ?? 0) > 0 ? `${(e.duration_seconds ?? 0).toFixed(0)}s` : '—'}</td>
                 <td style={{ padding: '10px', fontSize: '12px', color: '#666' }}>{e.created_at ? new Date(e.created_at).toLocaleDateString() : '—'}</td>
               </tr>
             ))}
