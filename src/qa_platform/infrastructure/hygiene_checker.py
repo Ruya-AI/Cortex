@@ -54,7 +54,7 @@ HIDDEN_ALLOWLIST: frozenset[str] = frozenset(
         ".npmrc", ".npmignore", ".yarnrc",
         ".python-version", ".node-version", ".nvmrc", ".ruby-version",
         ".tool-versions",
-        ".coveragerc", ".flake8",
+        ".coveragerc",
     }
 )
 
@@ -270,9 +270,6 @@ def _is_hidden_file(path: str) -> bool:
 def _is_hidden_allowed(path: str) -> bool:
     parts = PurePosixPath(path).parts
     for part in parts:
-        if part.startswith("."):
-            if part in HIDDEN_ALLOWLIST:
-                return True
-            if any(part.startswith(a.rstrip("/")) for a in HIDDEN_ALLOWLIST if a.endswith("/")):
-                return True
+        if part.startswith(".") and part in HIDDEN_ALLOWLIST:
+            return True
     return False

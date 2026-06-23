@@ -28,7 +28,7 @@ PACKAGE_DIRECTORIES = {
 
 SENSITIVE_PATTERNS = {
     ".env", ".env.local", ".env.production", ".env.staging", ".env.development",
-    ".env.test", ".env.example",
+    ".env.test",
     "credentials.json", "service-account.json", "service_account.json",
     "wp-config.php",
 }
@@ -157,10 +157,17 @@ class RepoScannerTool(Tier1Tool):
 
         return findings
 
+    @staticmethod
+    def _in_package_dir(fp: str) -> bool:
+        parts = Path(fp).parts
+        return any(part in PACKAGE_DIRECTORIES for part in parts[:-1])
+
     def _check_sensitive(self, tracked: list[str]) -> list[Finding]:
         findings: list[Finding] = []
 
         for fp in tracked:
+            if self._in_package_dir(fp):
+                continue
             name = Path(fp).name
             ext = Path(fp).suffix.lower()
 
@@ -202,6 +209,8 @@ class RepoScannerTool(Tier1Tool):
         findings: list[Finding] = []
 
         for fp in tracked:
+            if self._in_package_dir(fp):
+                continue
             try:
                 size = os.path.getsize(repo_path / fp)
             except OSError:
@@ -298,6 +307,8 @@ class RepoScannerTool(Tier1Tool):
         findings: list[Finding] = []
 
         for fp in tracked:
+            if self._in_package_dir(fp):
+                continue
             name = Path(fp).name
             ext = Path(fp).suffix.lower()
 
