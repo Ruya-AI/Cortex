@@ -7,18 +7,18 @@ interface AnalyticsDashboard {
   total_scans: number;
   total_findings: number;
   quality_gate_pass_rate: number;
-  total_cost_usd: number;
+  total_cost: number;
   avg_duration_seconds: number;
-  prs_tracked: number;
-  linear_tasks: number;
+  total_prs_tracked: number;
+  total_linear_tasks: number;
   severity_distribution: Record<string, number>;
-  top_categories: Array<{ category: string; count: number }>;
-  top_files: Array<{ file: string; count: number }>;
-  top_sources: Array<{ source: string; count: number }>;
+  recent_executions: QAExecution[];
 }
 
 interface PatternData {
-  recent_executions: QAExecution[];
+  top_categories: Array<{ category: string; count: number }>;
+  top_files: Array<{ file: string; count: number }>;
+  top_sources: Array<{ source: string; count: number }>;
 }
 
 const tableStyle: React.CSSProperties = {
@@ -109,10 +109,10 @@ export function Analytics() {
           value={`${dashboard.quality_gate_pass_rate.toFixed(0)}%`}
           color={dashboard.quality_gate_pass_rate >= 80 ? '#28a745' : '#dc3545'}
         />
-        <MetricsCard title="Total Cost" value={`$${dashboard.total_cost_usd.toFixed(2)}`} />
-        <MetricsCard title="Avg Duration" value={`${dashboard.avg_duration_seconds.toFixed(0)}s`} />
-        <MetricsCard title="PRs Tracked" value={dashboard.prs_tracked} />
-        <MetricsCard title="Linear Tasks" value={dashboard.linear_tasks} />
+        <MetricsCard title="Total Cost" value={`$${(dashboard.total_cost ?? 0).toFixed(2)}`} />
+        <MetricsCard title="Avg Duration" value={`${(dashboard.avg_duration_seconds ?? 0).toFixed(0)}s`} />
+        <MetricsCard title="PRs Tracked" value={dashboard.total_prs_tracked} />
+        <MetricsCard title="Linear Tasks" value={dashboard.total_linear_tasks} />
       </div>
 
       <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: '1fr 1fr', marginBottom: '30px' }}>
@@ -142,7 +142,7 @@ export function Analytics() {
         {/* Top Finding Categories */}
         <div style={cardStyle}>
           <h3 style={sectionHeading}>Top Finding Categories</h3>
-          {(dashboard.top_categories || []).length > 0 ? (
+          {(patterns?.top_categories || []).length > 0 ? (
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -151,7 +151,7 @@ export function Analytics() {
                 </tr>
               </thead>
               <tbody>
-                {dashboard.top_categories.map(cat => (
+                {patterns!.top_categories.map(cat => (
                   <tr key={cat.category}>
                     <td style={tdStyle}>{cat.category}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{cat.count}</td>
@@ -167,7 +167,7 @@ export function Analytics() {
         {/* Top Files */}
         <div style={cardStyle}>
           <h3 style={sectionHeading}>Top Files with Most Findings</h3>
-          {(dashboard.top_files || []).length > 0 ? (
+          {(patterns?.top_files || []).length > 0 ? (
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -176,7 +176,7 @@ export function Analytics() {
                 </tr>
               </thead>
               <tbody>
-                {dashboard.top_files.map(f => (
+                {patterns!.top_files.map(f => (
                   <tr key={f.file}>
                     <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '12px' }}>{f.file}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{f.count}</td>
@@ -192,7 +192,7 @@ export function Analytics() {
         {/* Top Sources */}
         <div style={cardStyle}>
           <h3 style={sectionHeading}>Top Sources (Tools / Agents)</h3>
-          {(dashboard.top_sources || []).length > 0 ? (
+          {(patterns?.top_sources || []).length > 0 ? (
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -201,7 +201,7 @@ export function Analytics() {
                 </tr>
               </thead>
               <tbody>
-                {dashboard.top_sources.map(s => (
+                {patterns!.top_sources.map(s => (
                   <tr key={s.source}>
                     <td style={tdStyle}>{s.source}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{s.count}</td>
@@ -218,7 +218,7 @@ export function Analytics() {
       {/* Recent Executions */}
       <div style={cardStyle}>
         <h3 style={sectionHeading}>Recent Executions</h3>
-        {(patterns?.recent_executions || []).length > 0 ? (
+        {(dashboard.recent_executions || []).length > 0 ? (
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -233,7 +233,7 @@ export function Analytics() {
               </tr>
             </thead>
             <tbody>
-              {patterns!.recent_executions.map(e => (
+              {dashboard.recent_executions.map(e => (
                 <tr key={e.id}>
                   <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '12px' }}>{e.scan_id || e.id.slice(0, 8)}</td>
                   <td style={tdStyle}>{e.repository_url.split('/').pop()}</td>
