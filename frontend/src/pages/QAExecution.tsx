@@ -21,15 +21,62 @@ const TIER_OPTIONS = [
   { value: '1,2,3', label: 'All tiers (tools + agents + cross-file)' },
 ];
 
+const STATUS_CONFIG: Record<string, { bg: string; fg: string; dot: string; label: string }> = {
+  running:   { bg: '#cfe2ff', fg: '#0d6efd', dot: '#0d6efd', label: 'Running' },
+  pending:   { bg: '#cfe2ff', fg: '#0d6efd', dot: '#0d6efd', label: 'Pending' },
+  completed: { bg: '#d1e7dd', fg: '#198754', dot: '#198754', label: 'Completed' },
+  failed:    { bg: '#f8d7da', fg: '#dc3545', dot: '#dc3545', label: 'Failed' },
+  not_started: { bg: '#e9ecef', fg: '#6c757d', dot: '#adb5bd', label: 'Not Started' },
+  skipped:   { bg: '#e9ecef', fg: '#6c757d', dot: '#adb5bd', label: 'Skipped' },
+};
+
+const STATUS_FILTERS = [
+  { key: '', label: 'All' },
+  { key: 'running', label: 'Running' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'failed', label: 'Failed' },
+  { key: 'pending', label: 'Pending' },
+];
+
+function QAStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.not_started;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      background: cfg.bg, color: cfg.fg,
+      padding: '3px 10px', borderRadius: '12px',
+      fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap',
+    }}>
+      <span style={{
+        width: '7px', height: '7px', borderRadius: '50%', background: cfg.dot,
+        display: 'inline-block',
+        animation: status === 'running' ? 'pulse 1.5s ease-in-out infinite' : 'none',
+      }} />
+      {cfg.label}
+      <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+    </span>
+  );
+}
+
 const tabStyle = (active: boolean): React.CSSProperties => ({
   padding: '10px 24px', cursor: 'pointer', fontWeight: active ? 700 : 400,
   borderBottom: active ? '3px solid #0f3460' : '3px solid transparent',
   color: active ? '#0f3460' : '#666', fontSize: '14px', background: 'none', border: 'none',
 });
 
+const filterPill = (active: boolean): React.CSSProperties => ({
+  padding: '4px 14px', borderRadius: '16px', fontSize: '12px', fontWeight: active ? 600 : 400,
+  border: active ? '2px solid #0f3460' : '1px solid #ccc',
+  background: active ? '#e8f0fe' : '#fff', color: active ? '#0f3460' : '#666',
+  cursor: 'pointer',
+});
+
 export function QAExecutionPage() {
   const [tab, setTab] = useState<TabKey>('repositories');
   const [qaTiers, setQaTiers] = useState('1,2');
+  const [historyKey, setHistoryKey] = useState(0);
+
+  const onQATriggered = () => setHistoryKey(k => k + 1);
 
   return (
     <div>
@@ -49,24 +96,37 @@ export function QAExecutionPage() {
         </select>
       </div>
 
-      {tab === 'repositories' && <RepoTab tiers={qaTiers} />}
-      {tab === 'pull_requests' && <PRTab tiers={qaTiers} />}
-      {tab === 'commits' && <CommitTab tiers={qaTiers} />}
+      {tab === 'repositories' && <RepoTab tiers={qaTiers} onTriggered={onQATriggered} />}
+      {tab === 'pull_requests' && <PRTab tiers={qaTiers} onTriggered={onQATriggered} />}
+      {tab === 'commits' && <CommitTab tiers={qaTiers} onTriggered={onQATriggered} />}
 
-      <ExecutionHistory executionType={tab === 'pull_requests' ? 'pull_request' : tab === 'commits' ? 'commit' : 'repository'} />
+      <ExecutionHistory
+        key={historyKey}
+        executionType={tab === 'pull_requests' ? 'pull_request' : tab === 'commits' ? 'commit' : 'repository'}
+      />
     </div>
   );
 }
 
-function RepoTab({ tiers }: { tiers: string }) {
+function RepoTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => void }) {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [executing, setExecuting] = useState(false);
   const [msg, setMsg] = useState('');
+  const [repoStatuses, setRepoStatuses] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchApi<{ items: Repository[] }>('/api/github/repos')
       .then(d => setRepos(d.items.filter(r => r.is_active))).catch(() => {});
+    fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=50&type=repository')
+      .then(d => {
+        const map: Record<string, string> = {};
+        for (const e of d.items) {
+          const key = e.repository_url.replace(/\.git$/, '').split('/').slice(-2).join('/');
+          if (!map[key]) map[key] = e.status;
+        }
+        setRepoStatuses(map);
+      }).catch(() => {});
   }, []);
 
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -85,10 +145,12 @@ function RepoTab({ tiers }: { tiers: string }) {
           branch: repo.default_branch, tiers: tiers.split(',').map(Number), execution_type: 'repository',
         })});
         ok++;
+        setRepoStatuses(prev => ({ ...prev, [repo.full_name]: 'pending' }));
       } catch { /* skip */ }
     }
     setMsg(`QA triggered for ${ok}/${sel.length} repositories.`);
     setExecuting(false); setSelected(new Set());
+    onTriggered();
   };
 
   return (
@@ -111,6 +173,7 @@ function RepoTab({ tiers }: { tiers: string }) {
               <th style={{ padding: '10px' }}>Repository</th>
               <th style={{ padding: '10px' }}>Description</th>
               <th style={{ padding: '10px' }}>Branch</th>
+              <th style={{ padding: '10px' }}>QA Status</th>
             </tr>
           </thead>
           <tbody>
@@ -122,9 +185,12 @@ function RepoTab({ tiers }: { tiers: string }) {
                 <td style={{ padding: '10px', fontWeight: 600, color: '#0f3460' }}>{r.full_name}</td>
                 <td style={{ padding: '10px', color: '#666', fontSize: '13px' }}>{r.description || '—'}</td>
                 <td style={{ padding: '10px' }}><code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '12px' }}>{r.default_branch}</code></td>
+                <td style={{ padding: '10px' }}>
+                  <QAStatusBadge status={repoStatuses[r.full_name] || 'not_started'} />
+                </td>
               </tr>
             ))}
-            {repos.length === 0 && <tr><td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No repositories configured. Go to Admin to add.</td></tr>}
+            {repos.length === 0 && <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No repositories configured. Go to Admin to add.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -132,7 +198,7 @@ function RepoTab({ tiers }: { tiers: string }) {
   );
 }
 
-function PRTab({ tiers }: { tiers: string }) {
+function PRTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => void }) {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [prs, setPrs] = useState<PullRequest[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -178,6 +244,7 @@ function PRTab({ tiers }: { tiers: string }) {
     }
     setMsg(`QA triggered for ${ok}/${sel.length} PRs.`);
     setExecuting(false); setSelected(new Set());
+    onTriggered();
   };
 
   return (
@@ -220,7 +287,7 @@ function PRTab({ tiers }: { tiers: string }) {
                 <td style={{ padding: '10px' }}><code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '11px' }}>{pr.source_branch}</code></td>
                 <td style={{ padding: '10px', fontSize: '13px' }}>{pr.owner}/{pr.repo_name}</td>
                 <td style={{ padding: '10px' }}>
-                  <span style={{ color: pr.qa_status === 'completed' ? '#28a745' : pr.qa_status === 'failed' ? '#dc3545' : pr.qa_status === 'running' ? '#0d6efd' : '#adb5bd', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>{pr.qa_status}</span>
+                  <QAStatusBadge status={pr.qa_status} />
                 </td>
               </tr>
             ))}
@@ -232,7 +299,7 @@ function PRTab({ tiers }: { tiers: string }) {
   );
 }
 
-function CommitTab({ tiers }: { tiers: string }) {
+function CommitTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => void }) {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [selectedRepo, setSelectedRepo] = useState('');
   const [commits, setCommits] = useState<Commit[]>([]);
@@ -240,11 +307,20 @@ function CommitTab({ tiers }: { tiers: string }) {
   const [fetching, setFetching] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [msg, setMsg] = useState('');
+  const [commitStatuses, setCommitStatuses] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchApi<{ items: Repository[] }>('/api/github/repos')
       .then(d => { const a = d.items.filter(r => r.is_active); setRepos(a); if (a.length > 0) setSelectedRepo(a[0].id); })
       .catch(() => {});
+    fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=50&type=commit')
+      .then(d => {
+        const map: Record<string, string> = {};
+        for (const e of d.items) {
+          if (e.commit_sha && !map[e.commit_sha]) map[e.commit_sha] = e.status;
+        }
+        setCommitStatuses(map);
+      }).catch(() => {});
   }, []);
 
   const fetchCommits = async () => {
@@ -272,10 +348,12 @@ function CommitTab({ tiers }: { tiers: string }) {
           commit_sha: sha, tiers: tiers.split(',').map(Number), execution_type: 'commit',
         })});
         ok++;
+        setCommitStatuses(prev => ({ ...prev, [sha]: 'pending' }));
       } catch { /* skip */ }
     }
     setMsg(`QA triggered for ${ok}/${selected.size} commits.`);
     setExecuting(false); setSelected(new Set());
+    onTriggered();
   };
 
   return (
@@ -305,6 +383,7 @@ function CommitTab({ tiers }: { tiers: string }) {
                 <th style={{ padding: '10px' }}>Message</th>
                 <th style={{ padding: '10px' }}>Author</th>
                 <th style={{ padding: '10px' }}>Date</th>
+                <th style={{ padding: '10px' }}>QA Status</th>
               </tr>
             </thead>
             <tbody>
@@ -320,6 +399,9 @@ function CommitTab({ tiers }: { tiers: string }) {
                   <td style={{ padding: '10px', fontSize: '13px' }}>{c.message}</td>
                   <td style={{ padding: '10px', fontSize: '13px' }}>{c.author_login || c.author}</td>
                   <td style={{ padding: '10px', fontSize: '12px', color: '#666' }}>{new Date(c.date).toLocaleDateString()}</td>
+                  <td style={{ padding: '10px' }}>
+                    <QAStatusBadge status={commitStatuses[c.sha] || 'not_started'} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -337,12 +419,15 @@ function CommitTab({ tiers }: { tiers: string }) {
 function ExecutionHistory({ executionType }: { executionType: string }) {
   const [executions, setExecutions] = useState<QAExecution[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
-    fetchApi<{ items: QAExecution[] }>(`/api/qa/executions?limit=20&type=${executionType}`)
+    let url = `/api/qa/executions?limit=20&type=${executionType}`;
+    if (statusFilter) url += `&status=${statusFilter}`;
+    fetchApi<{ items: QAExecution[] }>(url)
       .then(d => setExecutions(d.items)).catch(() => {}).finally(() => setLoading(false));
-  }, [executionType]);
+  }, [executionType, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -350,7 +435,12 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
     <div style={{ marginTop: '30px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h3 style={{ margin: 0 }}>Execution History</h3>
-        <button onClick={load} style={{ padding: '4px 14px', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>Refresh</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {STATUS_FILTERS.map(f => (
+            <button key={f.key} style={filterPill(statusFilter === f.key)} onClick={() => setStatusFilter(f.key)}>{f.label}</button>
+          ))}
+          <button onClick={load} style={{ padding: '4px 14px', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginLeft: '8px' }}>Refresh</button>
+        </div>
       </div>
       {loading ? <p style={{ color: '#999' }}>Loading...</p> : (
         <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
@@ -373,18 +463,16 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
                   <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>{e.scan_id || e.id.slice(0, 8)}</td>
                   <td style={{ padding: '10px' }}>{e.repository_url.replace(/\.git$/, '').split('/').slice(-2).join('/')}</td>
                   <td style={{ padding: '10px' }}><code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '11px' }}>{e.commit_sha ? e.commit_sha.slice(0, 7) : e.branch || '—'}</code></td>
-                  <td style={{ padding: '10px' }}>
-                    <span style={{ color: e.status === 'completed' ? '#28a745' : e.status === 'failed' ? '#dc3545' : '#0d6efd', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>{e.status}</span>
-                  </td>
+                  <td style={{ padding: '10px' }}><QAStatusBadge status={e.status} /></td>
                   <td style={{ padding: '10px' }}>{e.finding_count}</td>
                   <td style={{ padding: '10px' }}>
                     <span style={{ color: e.quality_gate_status === 'pass' ? '#28a745' : '#dc3545', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>{e.quality_gate_status || '—'}</span>
                   </td>
-                  <td style={{ padding: '10px' }}>{e.duration_seconds > 0 ? `${e.duration_seconds.toFixed(0)}s` : '—'}</td>
+                  <td style={{ padding: '10px' }}>{(e.duration_seconds ?? 0) > 0 ? `${e.duration_seconds.toFixed(0)}s` : '—'}</td>
                   <td style={{ padding: '10px', fontSize: '12px', color: '#666' }}>{e.created_at ? new Date(e.created_at).toLocaleDateString() : '—'}</td>
                 </tr>
               ))}
-              {executions.length === 0 && <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No executions yet.</td></tr>}
+              {executions.length === 0 && <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No executions found.</td></tr>}
             </tbody>
           </table>
         </div>

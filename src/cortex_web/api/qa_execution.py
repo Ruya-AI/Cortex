@@ -60,11 +60,14 @@ async def trigger_qa_execution(
 async def list_executions(
     limit: int = 20,
     type: str | None = None,
+    status: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(QAExecution)
     if type and type in ("repository", "pull_request", "commit"):
         query = query.where(QAExecution.execution_type == type)
+    if status and status in ("pending", "running", "completed", "failed"):
+        query = query.where(QAExecution.status == status)
     result = await db.execute(query.order_by(QAExecution.created_at.desc()).limit(limit))
     executions = result.scalars().all()
     return {"items": [_exec_to_dict(e) for e in executions]}
