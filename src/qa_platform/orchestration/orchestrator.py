@@ -141,7 +141,8 @@ class ScanOrchestrator:
                     risk = RiskAssessment(high_risk_files=file_set.reviewable_files)
 
             # Phase 7: Agent review
-            all_findings: list[Finding] = list(tier1_result.findings) + list(file_set.hygiene_findings)
+            reportable_hygiene = [f for f in file_set.hygiene_findings if f.severity.value >= 1]
+            all_findings: list[Finding] = list(tier1_result.findings) + reportable_hygiene
             agent_cost = 0.0
 
             if 2 in request.tiers and self._review_engine and risk.high_risk_files:
