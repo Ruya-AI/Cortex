@@ -9,6 +9,15 @@ interface Repository {
   qa_tiers: string; is_active: boolean;
 }
 
+interface RepoDetails {
+  full_name: string; description: string; language: string; stars: number;
+  forks: number; open_issues: number; default_branch: string; visibility: string;
+  size_kb: number; license: string; topics: string[]; created_at: string;
+  updated_at: string; pushed_at: string; owner_login: string; owner_type: string;
+  owner_avatar: string; html_url: string;
+  contributors: Array<{ login: string; avatar_url: string; contributions: number }>;
+}
+
 interface Commit {
   sha: string; short_sha: string; message: string; author: string;
   author_login: string; author_avatar: string; date: string; html_url: string;
@@ -114,24 +123,25 @@ function RepoTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => voi
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [executing, setExecuting] = useState(false);
   const [msg, setMsg] = useState('');
-  const [repoStatuses, setRepoStatuses] = useState<Record<string, string>>({});
+  const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
+  const [repoDetails, setRepoDetails] = useState<Record<string, RepoDetails>>({});
 
   useEffect(() => {
     fetchApi<{ items: Repository[] }>('/api/github/repos')
       .then(d => setRepos(d.items.filter(r => r.is_active))).catch(() => {});
-    fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=50&type=repository')
-      .then(d => {
-        const map: Record<string, string> = {};
-        for (const e of d.items) {
-          const key = e.repository_url.replace(/\.git$/, '').split('/').slice(-2).join('/');
-          if (!map[key]) map[key] = e.status;
-        }
-        setRepoStatuses(map);
-      }).catch(() => {});
   }, []);
 
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => setSelected(selected.size === repos.length ? new Set() : new Set(repos.map(r => r.id)));
+
+  const loadDetails = (id: string) => {
+    if (expandedRepo === id) { setExpandedRepo(null); return; }
+    setExpandedRepo(id);
+    if (!repoDetails[id]) {
+      fetchApi<RepoDetails>(`/api/github/repos/${id}/details`)
+        .then(d => setRepoDetails(prev => ({ ...prev, [id]: d })))
+        .catch(() => {});
+    }
+  };
 
   const runQA = async () => {
     if (selected.size === 0) return;
@@ -146,7 +156,6 @@ function RepoTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => voi
           branch: repo.default_branch, tiers: tiers.split(',').map(Number), execution_type: 'repository',
         })});
         ok++;
-        setRepoStatuses(prev => ({ ...prev, [repo.full_name]: 'pending' }));
       } catch { /* skip */ }
     }
     setMsg(`QA triggered for ${ok}/${sel.length} repositories.`);
@@ -157,43 +166,107 @@ function RepoTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => voi
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <span style={{ fontSize: '13px', color: '#666' }}>{repos.length} repositories</span>
+        <span style={{ fontSize: '13px', color: '#666' }}>{repos.length} repositories configured</span>
         <button onClick={runQA} disabled={selected.size === 0 || executing}
           style={{ padding: '8px 24px', background: selected.size > 0 && !executing ? '#0f3460' : '#ccc', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, fontSize: '13px', cursor: selected.size > 0 && !executing ? 'pointer' : 'default' }}>
           {executing ? 'Running...' : `Run QA (${selected.size} selected)`}
         </button>
       </div>
       {msg && <StatusMsg msg={msg} />}
-      <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #dee2e6', textAlign: 'left' }}>
-              <th style={{ padding: '10px', width: '40px' }}>
-                <input type="checkbox" checked={selected.size === repos.length && repos.length > 0} onChange={toggleAll} />
-              </th>
-              <th style={{ padding: '10px' }}>Repository</th>
-              <th style={{ padding: '10px' }}>Description</th>
-              <th style={{ padding: '10px' }}>Branch</th>
-              <th style={{ padding: '10px' }}>QA Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {repos.map(r => (
-              <tr key={r.id} onClick={() => toggle(r.id)} style={{ borderBottom: '1px solid #f0f0f0', background: selected.has(r.id) ? '#f0f7ff' : 'transparent', cursor: 'pointer' }}>
-                <td style={{ padding: '10px' }} onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
-                </td>
-                <td style={{ padding: '10px', fontWeight: 600, color: '#0f3460' }}>{r.full_name}</td>
-                <td style={{ padding: '10px', color: '#666', fontSize: '13px' }}>{r.description || '—'}</td>
-                <td style={{ padding: '10px' }}><code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '12px' }}>{r.default_branch}</code></td>
-                <td style={{ padding: '10px' }}>
-                  <QAStatusBadge status={repoStatuses[r.full_name] || 'not_started'} />
-                </td>
-              </tr>
-            ))}
-            {repos.length === 0 && <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No repositories configured. Go to Admin to add.</td></tr>}
-          </tbody>
-        </table>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {repos.map(r => {
+          const isSelected = selected.has(r.id);
+          const isExpanded = expandedRepo === r.id;
+          const details = repoDetails[r.id];
+          return (
+            <div key={r.id} style={{ background: '#fff', borderRadius: '8px', border: `1px solid ${isSelected ? '#0f3460' : '#dee2e6'}`, overflow: 'hidden' }}>
+              {/* Row */}
+              <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer', background: isSelected ? '#f0f7ff' : 'transparent' }}
+                onClick={() => toggle(r.id)}>
+                <input type="checkbox" checked={isSelected} onChange={() => toggle(r.id)} onClick={e => e.stopPropagation()} style={{ marginRight: '14px', cursor: 'pointer', width: '16px', height: '16px' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    <a href={`https://github.com/${r.owner}/${r.repo_name}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                      style={{ fontWeight: 700, fontSize: '15px', color: '#0f3460', textDecoration: 'none' }}>{r.full_name}</a>
+                    <code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '11px', color: '#666' }}>{r.default_branch}</code>
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#666' }}>{r.description || 'No description'}</div>
+                </div>
+                <button onClick={e => { e.stopPropagation(); loadDetails(r.id); }}
+                  style={{ padding: '6px 14px', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', color: '#333', marginLeft: '12px' }}>
+                  {isExpanded ? 'Hide' : 'Details'}
+                </button>
+              </div>
+
+              {/* Expanded Details */}
+              {isExpanded && (
+                <div style={{ borderTop: '1px solid #e9ecef', padding: '16px 20px', background: '#fafbfc' }}>
+                  {details ? (
+                    <div>
+                      {/* Owner & Org */}
+                      <div style={{ display: 'flex', gap: '24px', marginBottom: '16px', alignItems: 'center' }}>
+                        {details.owner_avatar && <img src={details.owner_avatar} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6' }} />}
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#333' }}>{details.owner_login}</div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>{details.owner_type}</div>
+                        </div>
+                        {details.visibility && <span style={{ background: details.visibility === 'private' ? '#ffc107' : '#28a745', color: details.visibility === 'private' ? '#333' : '#fff', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{details.visibility.toUpperCase()}</span>}
+                      </div>
+
+                      {/* Repo Info Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px', fontSize: '13px' }}>
+                        {details.language && <div><span style={{ color: '#999' }}>Language:</span> <strong>{details.language}</strong></div>}
+                        <div><span style={{ color: '#999' }}>Stars:</span> <strong>{details.stars}</strong></div>
+                        <div><span style={{ color: '#999' }}>Forks:</span> <strong>{details.forks}</strong></div>
+                        <div><span style={{ color: '#999' }}>Open Issues:</span> <strong>{details.open_issues}</strong></div>
+                        <div><span style={{ color: '#999' }}>Size:</span> <strong>{(details.size_kb / 1024).toFixed(1)} MB</strong></div>
+                        {details.license && <div><span style={{ color: '#999' }}>License:</span> <strong>{details.license}</strong></div>}
+                        <div><span style={{ color: '#999' }}>Created:</span> <strong>{new Date(details.created_at).toLocaleDateString()}</strong></div>
+                        <div><span style={{ color: '#999' }}>Last Push:</span> <strong>{new Date(details.pushed_at).toLocaleDateString()}</strong></div>
+                      </div>
+
+                      {/* Topics */}
+                      {details.topics.length > 0 && (
+                        <div style={{ marginBottom: '16px' }}>
+                          <span style={{ fontSize: '12px', color: '#999', marginRight: '8px' }}>Topics:</span>
+                          {details.topics.map(t => (
+                            <span key={t} style={{ display: 'inline-block', background: '#e8f0fe', color: '#0f3460', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', marginRight: '6px', marginBottom: '4px' }}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Contributors */}
+                      {details.contributors.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>Major Contributors</div>
+                          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                            {details.contributors.map(c => (
+                              <div key={c.login} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                                <img src={c.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
+                                <div>
+                                  <div style={{ fontWeight: 500 }}>{c.login}</div>
+                                  <div style={{ fontSize: '11px', color: '#999' }}>{c.contributions} commits</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#999', padding: '10px', fontSize: '13px' }}>Loading details...</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {repos.length === 0 && (
+          <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', padding: '30px', textAlign: 'center', color: '#999' }}>
+            No repositories configured. Go to Admin to add.
+          </div>
+        )}
       </div>
     </div>
   );

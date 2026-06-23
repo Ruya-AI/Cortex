@@ -121,6 +121,46 @@ class GitHubService:
                 for c in response.json()
             ]
 
+    async def fetch_repo_details(self, owner: str, repo: str) -> dict:
+        """Fetch repository metadata and top contributors."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(f"{self._api_url}/repos/{owner}/{repo}", headers=self._headers)
+            resp.raise_for_status()
+            r = resp.json()
+
+            contributors = []
+            try:
+                c_resp = await client.get(f"{self._api_url}/repos/{owner}/{repo}/contributors", headers=self._headers, params={"per_page": 10})
+                if c_resp.status_code == 200:
+                    contributors = [
+                        {"login": c.get("login", ""), "avatar_url": c.get("avatar_url", ""), "contributions": c.get("contributions", 0)}
+                        for c in c_resp.json()[:10]
+                    ]
+            except Exception:
+                pass
+
+            return {
+                "full_name": r.get("full_name", ""),
+                "description": r.get("description") or "",
+                "language": r.get("language") or "",
+                "stars": r.get("stargazers_count", 0),
+                "forks": r.get("forks_count", 0),
+                "open_issues": r.get("open_issues_count", 0),
+                "default_branch": r.get("default_branch", "main"),
+                "visibility": r.get("visibility", ""),
+                "size_kb": r.get("size", 0),
+                "license": r.get("license", {}).get("spdx_id", "") if r.get("license") else "",
+                "topics": r.get("topics", []),
+                "created_at": r.get("created_at", ""),
+                "updated_at": r.get("updated_at", ""),
+                "pushed_at": r.get("pushed_at", ""),
+                "owner_login": r.get("owner", {}).get("login", ""),
+                "owner_type": r.get("owner", {}).get("type", ""),
+                "owner_avatar": r.get("owner", {}).get("avatar_url", ""),
+                "html_url": r.get("html_url", ""),
+                "contributors": contributors,
+            }
+
     async def get_pr_details(self, owner: str, repo: str, pr_number: int) -> dict:
         """Fetch detailed PR information including file changes."""
         async with httpx.AsyncClient(timeout=30) as client:
