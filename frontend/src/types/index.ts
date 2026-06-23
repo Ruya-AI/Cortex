@@ -33,11 +33,33 @@ export interface QAExecution {
   duration_seconds: number;
   cost_usd: number;
   report_json_path: string;
+  report_pdf_path: string;
   executive_json_path: string;
+  executive_pdf_path: string;
+  execution_log: string;
   error_message: string;
   started_at: string | null;
   completed_at: string | null;
   created_at: string | null;
+}
+
+export interface QAFinding {
+  id: string;
+  finding_id: string;
+  source: string;
+  tier: number;
+  category: string;
+  severity: string;
+  confidence: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  title: string;
+  explanation: string;
+  recommendation: string;
+  cwe: string | null;
+  validation_status: string;
+  linear_task_id: string | null;
 }
 
 export interface AppSettings {

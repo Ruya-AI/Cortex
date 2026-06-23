@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { fetchApi } from '../hooks/useApi';
 import { QAExecution } from '../types';
 
@@ -101,6 +102,7 @@ export function Reports() {
                   <th style={thStyle}>Gate</th>
                   <th style={thStyle}>Date</th>
                   <th style={thStyle}>Downloads</th>
+                  <th style={thStyle}></th>
                 </tr>
               </thead>
               <tbody>
@@ -151,6 +153,9 @@ export function Reports() {
                       <button style={downloadBtnStyle} onClick={() => download(e.id, 'full-pdf')}>PDF</button>
                       <button style={downloadBtnStyle} onClick={() => download(e.id, 'executive-json')}>Exec JSON</button>
                       <button style={downloadBtnStyle} onClick={() => download(e.id, 'executive-pdf')}>Exec PDF</button>
+                    </td>
+                    <td style={tdStyle} onClick={ev => ev.stopPropagation()}>
+                      <Link to={`/qa-execution/${e.id}`} style={{ color: '#0f3460', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>View</Link>
                     </td>
                   </tr>
                 ))}

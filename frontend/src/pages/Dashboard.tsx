@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { MetricsCard } from '../components/MetricsCard';
 import { fetchApi } from '../hooks/useApi';
 import { QAExecution } from '../types';
@@ -260,7 +261,9 @@ export function Dashboard() {
           <tbody>
             {executions.map(e => (
               <tr key={e.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>{e.scan_id || e.id.slice(0, 8)}</td>
+                <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>
+                  <Link to={`/qa-execution/${e.id}`} style={{ color: '#0f3460', textDecoration: 'none', fontWeight: 600 }}>{e.scan_id || e.id.slice(0, 8)}</Link>
+                </td>
                 <td style={{ padding: '10px' }}>{repoName(e.repository_url)}</td>
                 <td style={{ padding: '10px' }}>
                   <span style={{ fontSize: '11px', background: '#f0f0f0', padding: '2px 6px', borderRadius: '3px', textTransform: 'capitalize' }}>

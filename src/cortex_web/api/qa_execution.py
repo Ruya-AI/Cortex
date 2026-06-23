@@ -172,6 +172,38 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
             if scan_result.get("errors"):
                 execution.error_message = "\n".join(scan_result["errors"])
 
+            # Store findings in qa_findings table
+            if scan_result.get("json_path"):
+                try:
+                    import json as _json
+                    from pathlib import Path
+                    from cortex_web.models.qa_finding import QAFinding
+                    report_data = _json.loads(Path(scan_result["json_path"]).read_text())
+                    for finding in report_data.get("findings", [])[:200]:
+                        sev = finding.get("severity", "info")
+                        if isinstance(sev, int):
+                            sev = {4: "critical", 3: "high", 2: "medium", 1: "low", 0: "info"}.get(sev, "info")
+                        db.add(QAFinding(
+                            id=str(uuid.uuid4()),
+                            execution_id=execution.id,
+                            finding_id=finding.get("id", ""),
+                            source=finding.get("source", ""),
+                            tier=finding.get("tier", 1),
+                            category=finding.get("category", "unknown"),
+                            severity=sev,
+                            confidence=str(finding.get("confidence", "likely")),
+                            file_path=finding.get("file", ""),
+                            start_line=finding.get("start_line", 0),
+                            end_line=finding.get("end_line", 0),
+                            title=finding.get("title", ""),
+                            explanation=finding.get("explanation", "")[:2000],
+                            recommendation=finding.get("recommendation", "")[:2000],
+                            cwe=finding.get("cwe"),
+                            validation_status=str(finding.get("validation_status", "unvalidated")),
+                        ))
+                except Exception as store_err:
+                    logger.warning("Failed to store findings: %s", store_err)
+
             await broadcast_progress(execution_id, {
                 "type": "status", "status": "completed", "repository_url": repo_url,
                 "finding_count": execution.finding_count,
@@ -206,7 +238,10 @@ def _exec_to_dict(e: QAExecution) -> dict:
         "duration_seconds": e.duration_seconds,
         "cost_usd": e.cost_usd,
         "report_json_path": e.report_json_path,
+        "report_pdf_path": e.report_pdf_path,
         "executive_json_path": e.executive_json_path,
+        "executive_pdf_path": e.executive_pdf_path,
+        "execution_log": e.execution_log,
         "error_message": e.error_message,
         "started_at": e.started_at.isoformat() if e.started_at else None,
         "completed_at": e.completed_at.isoformat() if e.completed_at else None,

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { QAExecutionPage } from './pages/QAExecution';
+import { ExecutionDetail } from './pages/ExecutionDetail';
 import { Reports } from './pages/Reports';
 import { Admin } from './pages/Admin';
 
@@ -70,6 +71,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/qa-execution" element={<QAExecutionPage />} />
+            <Route path="/qa-execution/:id" element={<ExecutionDetail />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/admin" element={<Admin />} />
           </Routes>

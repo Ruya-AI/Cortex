@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { fetchApi } from '../hooks/useApi';
 import { PullRequest, QAExecution } from '../types';
 
@@ -460,7 +461,9 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
             <tbody>
               {executions.map(e => (
                 <tr key={e.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>{e.scan_id || e.id.slice(0, 8)}</td>
+                  <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>
+                    <Link to={`/qa-execution/${e.id}`} style={{ color: '#0f3460', textDecoration: 'none', fontWeight: 600 }}>{e.scan_id || e.id.slice(0, 8)}</Link>
+                  </td>
                   <td style={{ padding: '10px' }}>{e.repository_url.replace(/\.git$/, '').split('/').slice(-2).join('/')}</td>
                   <td style={{ padding: '10px' }}><code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '11px' }}>{e.commit_sha ? e.commit_sha.slice(0, 7) : e.branch || '—'}</code></td>
                   <td style={{ padding: '10px' }}><QAStatusBadge status={e.status} /></td>

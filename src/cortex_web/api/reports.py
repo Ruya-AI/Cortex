@@ -89,3 +89,21 @@ async def get_execution_findings(
          "linear_task_id": f.linear_task_id}
         for f in findings
     ], "total": len(findings)}
+
+
+@router.get("/{execution_id}/findings/{finding_id}")
+async def get_finding_detail(execution_id: str, finding_id: str, db: AsyncSession = Depends(get_db)):
+    """Get full finding detail (untruncated explanation and recommendation)."""
+    result = await db.execute(
+        select(QAFinding).where(QAFinding.execution_id == execution_id, QAFinding.id == finding_id)
+    )
+    f = result.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return {
+        "id": f.id, "finding_id": f.finding_id, "source": f.source, "tier": f.tier,
+        "category": f.category, "severity": f.severity, "confidence": f.confidence,
+        "file_path": f.file_path, "start_line": f.start_line, "end_line": f.end_line,
+        "title": f.title, "explanation": f.explanation, "recommendation": f.recommendation,
+        "cwe": f.cwe, "validation_status": f.validation_status, "linear_task_id": f.linear_task_id,
+    }
