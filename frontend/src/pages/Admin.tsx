@@ -139,6 +139,27 @@ const msgStyle = (msg: string): React.CSSProperties => ({
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+function CollapsibleSection({ title, badge, defaultOpen = false, children }: {
+  title: string; badge?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={cardStyle}>
+      <h3
+        onClick={() => setOpen(o => !o)}
+        style={{ ...headingStyle, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', marginBottom: open ? '20px' : '0', borderBottom: open ? '2px solid #e9ecef' : 'none', paddingBottom: open ? '10px' : '0' }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'inline-block', transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'rotate(0deg)', fontSize: '12px', color: '#999' }}>&#9654;</span>
+          {title}
+          {badge}
+        </span>
+      </h3>
+      {open && children}
+    </div>
+  );
+}
+
 export function Admin() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -382,55 +403,28 @@ export function Admin() {
       <h2 style={{ marginBottom: '24px' }}>Administration</h2>
 
       {/* ===== Section 1: GitHub Settings ===== */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle}>
-          GitHub Settings
-          <span style={statusBadge(ghConfigured)}>
-            {ghConfigured ? 'Configured' : 'Not configured'}
-          </span>
-        </h3>
+      <CollapsibleSection title="GitHub Settings" badge={<span style={statusBadge(ghConfigured)}>{ghConfigured ? 'Configured' : 'Not configured'}</span>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Token</label>
-            <input
-              style={inputStyle}
-              type="password"
-              value={ghToken}
-              onChange={e => setGhToken(e.target.value)}
-              placeholder={ghConfigured ? '(unchanged -- enter new token to update)' : 'ghp_...'}
-            />
+            <input style={inputStyle} type="password" value={ghToken} onChange={e => setGhToken(e.target.value)}
+              placeholder={ghConfigured ? '(unchanged -- enter new token to update)' : 'ghp_...'} />
           </div>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>API URL</label>
-            <input
-              style={inputStyle}
-              value={ghApiUrl}
-              onChange={e => setGhApiUrl(e.target.value)}
-              placeholder="https://api.github.com"
-            />
+            <input style={inputStyle} value={ghApiUrl} onChange={e => setGhApiUrl(e.target.value)} placeholder="https://api.github.com" />
           </div>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Organization / User</label>
-            <input
-              style={inputStyle}
-              value={ghOrgName}
-              onChange={e => setGhOrgName(e.target.value)}
-              placeholder="e.g. Ruya-AI"
-            />
+            <input style={inputStyle} value={ghOrgName} onChange={e => setGhOrgName(e.target.value)} placeholder="e.g. Ruya-AI" />
           </div>
         </div>
         <button style={buttonStyle} onClick={saveGithub}>Save GitHub Settings</button>
         {ghMsg && <p style={msgStyle(ghMsg)}>{ghMsg}</p>}
-      </div>
+      </CollapsibleSection>
 
       {/* ===== Section 2: LLM Settings ===== */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle}>
-          LLM Settings
-          <span style={statusBadge(llmConfigured)}>
-            {llmConfigured ? 'Configured' : 'Not configured'}
-          </span>
-        </h3>
+      <CollapsibleSection title="LLM Settings" badge={<span style={statusBadge(llmConfigured)}>{llmConfigured ? 'Configured' : 'Not configured'}</span>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Provider</label>
@@ -506,16 +500,10 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveLLM}>Save LLM Settings</button>
         {llmMsg && <p style={msgStyle(llmMsg)}>{llmMsg}</p>}
-      </div>
+      </CollapsibleSection>
 
       {/* ===== Section 3: Linear Settings ===== */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle}>
-          Linear Settings
-          <span style={statusBadge(linearConfigured)}>
-            {linearConfigured ? 'Configured' : 'Not configured'}
-          </span>
-        </h3>
+      <CollapsibleSection title="Linear Settings" badge={<span style={statusBadge(linearConfigured)}>{linearConfigured ? 'Configured' : 'Not configured'}</span>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>API Key</label>
@@ -582,16 +570,10 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveLinear}>Save Linear Settings</button>
         {linearMsg && <p style={msgStyle(linearMsg)}>{linearMsg}</p>}
-      </div>
+      </CollapsibleSection>
 
-      {/* ===== Section 3: Notification Settings ===== */}
-      <div style={cardStyle}>
-        <h3 style={headingStyle}>
-          Notification Settings
-          <span style={statusBadge(notifConfigured)}>
-            {notifConfigured ? 'Configured' : 'Not configured'}
-          </span>
-        </h3>
+      {/* ===== Section 4: Notification Settings ===== */}
+      <CollapsibleSection title="Notification Settings" badge={<span style={statusBadge(notifConfigured)}>{notifConfigured ? 'Configured' : 'Not configured'}</span>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Slack Webhook URL</label>
@@ -637,9 +619,9 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveNotifications}>Save Notification Settings</button>
         {notifMsg && <p style={msgStyle(notifMsg)}>{notifMsg}</p>}
-      </div>
+      </CollapsibleSection>
 
-      {/* ===== Section 4: Repository Management ===== */}
+      {/* ===== Section 5: Repository Management ===== */}
       <div style={cardStyle}>
         <h3 style={headingStyle}>Repository Management</h3>
 
