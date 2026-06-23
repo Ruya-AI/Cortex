@@ -34,6 +34,20 @@ async def lifespan(app: FastAPI):
         from cortex_web.database import init_db
         await init_db()
         logger.info("Database initialized")
+
+        from cortex_web.database import async_session
+        from sqlalchemy import update
+        from cortex_web.models.qa_execution import QAExecution
+        from datetime import datetime
+        async with async_session() as db:
+            result = await db.execute(
+                update(QAExecution)
+                .where(QAExecution.status == "running")
+                .values(status="failed", error_message="Server restarted during scan", completed_at=datetime.utcnow())
+            )
+            if result.rowcount > 0:
+                await db.commit()
+                logger.info("Marked %d stale running executions as failed", result.rowcount)
     except Exception as e:
         logger.warning("Database init failed (PostgreSQL may not be running): %s", e)
 

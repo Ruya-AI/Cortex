@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, BackgroundTasks
@@ -8,6 +9,8 @@ from sqlalchemy import select
 from cortex_web.database import get_db
 from cortex_web.models.qa_execution import QAExecution
 from cortex_web.services.qa_bridge import QABridge
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/qa", tags=["qa-execution"])
 
@@ -74,16 +77,18 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
     from cortex_web.database import async_session
     from cortex_web.api.ws import broadcast_progress
 
-    loop = asyncio.get_event_loop()
-
-    async def _broadcast(msg: dict):
-        await broadcast_progress(execution_id, msg)
+    loop = asyncio.get_running_loop()
 
     def on_progress(message: str):
-        asyncio.run_coroutine_threadsafe(
-            _broadcast({"type": "progress", "message": message, "repository_url": repo_url}),
+        logger.info("QA progress [%s]: %s", execution_id[:8], message)
+        fut = asyncio.run_coroutine_threadsafe(
+            broadcast_progress(execution_id, {"type": "progress", "message": message, "repository_url": repo_url}),
             loop,
         )
+        try:
+            fut.result(timeout=5)
+        except Exception:
+            pass
 
     async with async_session() as db:
         result = await db.execute(select(QAExecution).where(QAExecution.id == execution_id))

@@ -35,6 +35,32 @@ export function Dashboard() {
 
   useEffect(() => { loadExecutions(); }, [loadExecutions]);
 
+  // Seed active executions from any already-running scans on page load
+  useEffect(() => {
+    fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=10')
+      .then(data => {
+        const running = data.items.filter(e => e.status === 'running');
+        if (running.length > 0) {
+          setActive(prev => {
+            const next = new Map(prev);
+            for (const e of running) {
+              if (!next.has(e.id)) {
+                next.set(e.id, {
+                  executionId: e.id,
+                  repo: repoName(e.repository_url),
+                  status: 'running',
+                  messages: ['Scan in progress...'],
+                  startedAt: e.started_at ? new Date(e.started_at).getTime() : Date.now(),
+                });
+              }
+            }
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Elapsed time ticker
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -165,36 +191,6 @@ export function Dashboard() {
         <MetricsCard title="Total Cost" value={`$${totalCost.toFixed(2)}`} />
       </div>
 
-      {/* Live QA Progress */}
-      <div style={{ marginBottom: '30px' }}>
-        <h3 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          Live QA Progress
-          {active.size > 0 && (
-            <span style={{
-              background: '#0d6efd', color: '#fff', borderRadius: '10px',
-              padding: '2px 8px', fontSize: '11px', fontWeight: 600,
-            }}>
-              {active.size} active
-            </span>
-          )}
-        </h3>
-
-        {active.size === 0 ? (
-          <div style={{
-            background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '8px',
-            padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px',
-          }}>
-            No active scans. Trigger QA from the Repositories page.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {Array.from(active.values()).map(exec => (
-              <ExecutionCard key={exec.executionId} exec={exec} now={now} />
-            ))}
-          </div>
-        )}
-      </div>
-
       <h3 style={{ marginBottom: '12px' }}>Recent QA Executions</h3>
       {loading ? (
         <p style={{ color: '#999' }}>Loading...</p>
@@ -236,6 +232,36 @@ export function Dashboard() {
           </tbody>
         </table>
       )}
+
+      {/* Live QA Progress */}
+      <div style={{ marginTop: '30px' }}>
+        <h3 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          Live QA Progress
+          {active.size > 0 && (
+            <span style={{
+              background: '#0d6efd', color: '#fff', borderRadius: '10px',
+              padding: '2px 8px', fontSize: '11px', fontWeight: 600,
+            }}>
+              {active.size} active
+            </span>
+          )}
+        </h3>
+
+        {active.size === 0 ? (
+          <div style={{
+            background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '8px',
+            padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px',
+          }}>
+            No active scans. Trigger QA from the Repositories page.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {Array.from(active.values()).map(exec => (
+              <ExecutionCard key={exec.executionId} exec={exec} now={now} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
