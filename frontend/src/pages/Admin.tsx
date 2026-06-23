@@ -185,6 +185,10 @@ export function Admin() {
   const [linearConfigured, setLinearConfigured] = useState(false);
   const [linearMsg, setLinearMsg] = useState('');
 
+  // --- QA Settings ---
+  const [staleTimeout, setStaleTimeout] = useState(60);
+  const [qaMsg, setQaMsg] = useState('');
+
   // --- LLM Settings ---
   const [llmProvider, setLlmProvider] = useState('vertex_ai');
   const [llmApiKey, setLlmApiKey] = useState('');
@@ -247,6 +251,11 @@ export function Admin() {
       })
       .catch(() => {});
 
+    // QA settings
+    fetchApi<Record<string, unknown>>('/api/admin/qa')
+      .then(data => { if (data) setStaleTimeout((data.stale_execution_timeout_minutes as number) ?? 60); })
+      .catch(() => {});
+
     // LLM settings
     fetchApi<Record<string, unknown>>('/api/admin/llm')
       .then(data => {
@@ -303,6 +312,13 @@ export function Admin() {
         setGhToken('');
       })
       .catch(() => setGhMsg('Failed to save GitHub settings.'));
+  };
+
+  const saveQA = () => {
+    setQaMsg('');
+    fetchApi('/api/admin/qa', { method: 'PUT', body: JSON.stringify({ stale_execution_timeout_minutes: staleTimeout }) })
+      .then(() => setQaMsg('QA settings saved.'))
+      .catch(() => setQaMsg('Failed to save QA settings.'));
   };
 
   const saveLLM = () => {
@@ -423,7 +439,21 @@ export function Admin() {
         {ghMsg && <p style={msgStyle(ghMsg)}>{ghMsg}</p>}
       </CollapsibleSection>
 
-      {/* ===== Section 2: LLM Settings ===== */}
+      {/* ===== Section 2: QA Execution Settings ===== */}
+      <CollapsibleSection title="QA Execution Settings">
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Stale Execution Timeout (minutes)</label>
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>
+            Running executions that exceed this duration are automatically marked as failed. Checked every 2 minutes.
+          </div>
+          <input style={{ ...inputStyle, maxWidth: '200px' }} type="number" min={5} max={1440} value={staleTimeout}
+            onChange={e => setStaleTimeout(Number(e.target.value))} />
+        </div>
+        <button style={buttonStyle} onClick={saveQA}>Save QA Settings</button>
+        {qaMsg && <p style={msgStyle(qaMsg)}>{qaMsg}</p>}
+      </CollapsibleSection>
+
+      {/* ===== Section 3: LLM Settings ===== */}
       <CollapsibleSection title="LLM Settings" badge={<span style={statusBadge(llmConfigured)}>{llmConfigured ? 'Configured' : 'Not configured'}</span>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>

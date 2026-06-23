@@ -193,6 +193,25 @@ async def update_llm_settings(data: LLMSettings, db: AsyncSession = Depends(get_
     return {"status": "updated"}
 
 
+# -- QA Settings --
+
+class QASettings(BaseModel):
+    stale_execution_timeout_minutes: int = 60
+
+@router.get("/qa")
+async def get_qa_settings(db: AsyncSession = Depends(get_db)):
+    timeout = await AdminSettings.get(db, "qa.stale_execution_timeout_minutes", "60")
+    return {
+        "stale_execution_timeout_minutes": int(timeout),
+    }
+
+@router.put("/qa")
+async def update_qa_settings(data: QASettings, db: AsyncSession = Depends(get_db)):
+    await AdminSettings.set(db, "qa.stale_execution_timeout_minutes", str(data.stale_execution_timeout_minutes), "qa", "Minutes before a running execution is considered stale and auto-failed")
+    await db.commit()
+    return {"status": "updated"}
+
+
 # -- General Settings --
 
 @router.get("/settings")

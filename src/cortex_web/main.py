@@ -58,6 +58,11 @@ async def lifespan(app: FastAPI):
         _background_tasks.append(task)
         logger.info("Scheduled PR fetch loop started (every 300s)")
 
+    # Start stale execution reaper
+    reaper_task = asyncio.create_task(_stale_execution_reaper())
+    _background_tasks.append(reaper_task)
+    logger.info("Stale execution reaper started")
+
     yield
 
     # Cancel background tasks on shutdown
@@ -65,6 +70,40 @@ async def lifespan(app: FastAPI):
         task.cancel()
     _background_tasks.clear()
     logger.info("Shutting down Cortex Web...")
+
+
+async def _stale_execution_reaper():
+    """Periodically check for stale running executions and mark them failed."""
+    from cortex_web.database import async_session
+    from cortex_web.models.qa_execution import QAExecution
+    from cortex_web.services.admin_settings import AdminSettings
+    from sqlalchemy import select
+    from datetime import datetime, timedelta
+
+    while True:
+        await asyncio.sleep(120)
+        try:
+            async with async_session() as db:
+                timeout_minutes = int(await AdminSettings.get(db, "qa.stale_execution_timeout_minutes", "60"))
+                cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+                result = await db.execute(
+                    select(QAExecution).where(
+                        QAExecution.status == "running",
+                        QAExecution.started_at < cutoff,
+                    )
+                )
+                stale = result.scalars().all()
+                if stale:
+                    for ex in stale:
+                        ex.status = "failed"
+                        ex.error_message = f"Execution timed out — exceeded {timeout_minutes} minute limit"
+                        ex.completed_at = datetime.utcnow()
+                    await db.commit()
+                    logger.info("Stale reaper: marked %d executions as failed (timeout=%dm)", len(stale), timeout_minutes)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning("Stale reaper error: %s", e)
 
 
 app = FastAPI(
