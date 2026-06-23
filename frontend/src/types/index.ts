@@ -40,14 +40,6 @@ export interface QAExecution {
   created_at: string | null;
 }
 
-export interface DashboardMetrics {
-  total_scans: number;
-  total_findings: number;
-  avg_findings_per_scan: number;
-  quality_gate_pass_rate: number;
-  most_common_categories: string[];
-}
-
 export interface AppSettings {
   features: {
     github: boolean;

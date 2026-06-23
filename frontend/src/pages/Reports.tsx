@@ -147,10 +147,10 @@ export function Reports() {
                       {e.created_at ? new Date(e.created_at).toLocaleDateString() : '—'}
                     </td>
                     <td style={tdStyle} onClick={ev => ev.stopPropagation()}>
-                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'full_json')}>JSON</button>
-                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'full_pdf')}>PDF</button>
-                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'executive_json')}>Exec JSON</button>
-                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'executive_pdf')}>Exec PDF</button>
+                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'full-json')}>JSON</button>
+                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'full-pdf')}>PDF</button>
+                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'executive-json')}>Exec JSON</button>
+                      <button style={downloadBtnStyle} onClick={() => download(e.id, 'executive-pdf')}>Exec PDF</button>
                     </td>
                   </tr>
                 ))}
@@ -177,12 +177,12 @@ export function Reports() {
                 </div>
                 <div style={{ padding: '12px', background: '#f8f9fa', borderRadius: '6px', textAlign: 'center' }}>
                   <div style={{ fontSize: '24px', fontWeight: 700 }}>
-                    {selected.duration_seconds > 0 ? `${selected.duration_seconds.toFixed(0)}s` : '—'}
+                    {(selected.duration_seconds ?? 0) > 0 ? `${selected.duration_seconds.toFixed(0)}s` : '—'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#6c757d', textTransform: 'uppercase' }}>Duration</div>
                 </div>
                 <div style={{ padding: '12px', background: '#f8f9fa', borderRadius: '6px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 700 }}>${selected.cost_usd.toFixed(4)}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700 }}>${(selected.cost_usd ?? 0).toFixed(4)}</div>
                   <div style={{ fontSize: '11px', color: '#6c757d', textTransform: 'uppercase' }}>Cost</div>
                 </div>
               </div>

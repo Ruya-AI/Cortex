@@ -1,7 +1,5 @@
-const API_BASE = '';
-
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(path, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
@@ -9,8 +7,4 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     throw new Error(`API error: ${response.status} ${response.statusText}`);
   }
   return response.json();
-}
-
-export function useApi() {
-  return { fetchApi };
 }

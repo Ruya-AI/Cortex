@@ -9,8 +9,8 @@ import { AppSettings } from '../types';
 interface AutomationRule {
   id: string;
   name: string;
-  trigger: string;
-  active: boolean;
+  trigger_on: string;
+  is_active: boolean;
 }
 
 interface GitHubSettings {
@@ -40,9 +40,9 @@ interface Repository {
   repo_name: string;
   description: string;
   default_branch: string;
-  auto_fetch: boolean;
+  auto_fetch_prs: boolean;
   qa_tiers: string;
-  active: boolean;
+  is_active: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -303,7 +303,7 @@ export function Admin() {
     })
       .then(() => {
         setRules(prev =>
-          prev.map(r => (r.id === rule.id ? { ...r, active: !r.active } : r))
+          prev.map(r => (r.id === rule.id ? { ...r, is_active: !r.is_active } : r))
         );
       })
       .catch(() => {});
@@ -703,7 +703,7 @@ export function Admin() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f3460' }}>
                     {repo.owner}/{repo.repo_name}
-                    {!repo.active && (
+                    {!repo.is_active && (
                       <span style={{
                         marginLeft: '8px',
                         fontSize: '11px',
@@ -717,7 +717,7 @@ export function Admin() {
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
                     {repo.description && <span>{repo.description} &middot; </span>}
                     branch: <strong>{repo.default_branch}</strong>
-                    {' '}&middot; auto-fetch: <strong>{repo.auto_fetch ? 'yes' : 'no'}</strong>
+                    {' '}&middot; auto-fetch: <strong>{repo.auto_fetch_prs ? 'yes' : 'no'}</strong>
                     {repo.qa_tiers && (
                       <span> &middot; tiers: <strong>{repo.qa_tiers}</strong></span>
                     )}
@@ -787,23 +787,23 @@ export function Admin() {
             >
               <div>
                 <div style={{ fontWeight: 500, fontSize: '14px' }}>{rule.name}</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>{rule.trigger}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>{rule.trigger_on}</div>
               </div>
               <button
                 onClick={() => toggleRule(rule)}
                 style={{
                   padding: '4px 14px',
                   border: '1px solid',
-                  borderColor: rule.active ? '#28a745' : '#dc3545',
+                  borderColor: rule.is_active ? '#28a745' : '#dc3545',
                   borderRadius: '4px',
                   background: 'transparent',
-                  color: rule.active ? '#28a745' : '#dc3545',
+                  color: rule.is_active ? '#28a745' : '#dc3545',
                   fontWeight: 600,
                   fontSize: '11px',
                   cursor: 'pointer',
                 }}
               >
-                {rule.active ? 'ACTIVE' : 'INACTIVE'}
+                {rule.is_active ? 'ACTIVE' : 'INACTIVE'}
               </button>
             </div>
           ))

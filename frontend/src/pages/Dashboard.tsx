@@ -65,9 +65,8 @@ export function Dashboard() {
     }).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
   useEffect(() => {
+    loadData();
     fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=10')
       .then(data => {
         const running = data.items.filter(e => e.status === 'running');
@@ -87,7 +86,7 @@ export function Dashboard() {
           });
         }
       }).catch(() => {});
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
