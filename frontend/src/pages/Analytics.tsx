@@ -248,8 +248,8 @@ export function Analytics() {
                       {e.quality_gate_status || '—'}
                     </span>
                   </td>
-                  <td style={tdStyle}>{e.duration_seconds > 0 ? `${e.duration_seconds.toFixed(0)}s` : '—'}</td>
-                  <td style={tdStyle}>${e.cost_usd.toFixed(4)}</td>
+                  <td style={tdStyle}>{(e.duration_seconds ?? 0) > 0 ? `${e.duration_seconds.toFixed(0)}s` : '—'}</td>
+                  <td style={tdStyle}>${(e.cost_usd ?? 0).toFixed(4)}</td>
                   <td style={{ ...tdStyle, fontSize: '12px', color: '#666' }}>{e.created_at ? new Date(e.created_at).toLocaleDateString() : '—'}</td>
                 </tr>
               ))}
