@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchApi } from '../hooks/useApi';
 import { QAExecution, QAFinding } from '../types';
+import { parseRuleId, getRuleUrl, getCweUrl, getToolDocUrl, TOOL_INFO } from '../data/ruleReference';
 
 type TabKey = 'findings' | 'full' | 'executive';
 
@@ -168,19 +169,31 @@ export function ExecutionDetail() {
               {findings.map(f => {
                 const isOpen = expandedFinding === f.id;
                 const detail = isOpen ? (expandedDetail || f) : f;
+                const ruleId = parseRuleId(f.title);
+                const ruleUrl = ruleId ? getRuleUrl(f.source, ruleId) : null;
+                const toolDocUrl = getToolDocUrl(f.source);
+                const toolDisplayName = TOOL_INFO[f.source]?.displayName || f.source;
+                const titleText = ruleId ? f.title.replace(`[${ruleId}] `, '') : f.title;
                 return (
                   <div key={f.id} style={{ ...card, marginBottom: 0, borderLeft: `4px solid ${severityColors[f.severity] || '#6c757d'}`, cursor: 'pointer' }} onClick={() => loadFullFinding(f.id)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isOpen ? '12px' : 0 }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                           <span style={{ background: severityColors[f.severity] || '#6c757d', color: '#fff', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' }}>{f.severity}</span>
-                          <span style={{ fontWeight: 600, fontSize: '14px', color: '#333' }}>{f.title}</span>
+                          {ruleId && (
+                            <a href={ruleUrl || '#'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                              title={`Rule ${ruleId} from ${toolDisplayName} — Click for documentation`}
+                              style={{ background: '#e8f0fe', color: '#0f3460', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, fontFamily: 'monospace', textDecoration: 'none', cursor: ruleUrl ? 'pointer' : 'default' }}>
+                              {ruleId}
+                            </a>
+                          )}
+                          <span style={{ fontWeight: 600, fontSize: '14px', color: '#333' }}>{titleText}</span>
                         </div>
                         <div style={{ fontSize: '12px', color: '#666', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                           <span><code style={{ color: '#0f3460' }}>{f.file_path}:{f.start_line}{f.end_line > f.start_line ? `-${f.end_line}` : ''}</code></span>
-                          <span>Source: {f.source}</span>
+                          <span>Source: {toolDocUrl ? <a href={toolDocUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#0f3460', textDecoration: 'none' }}>{toolDisplayName}</a> : toolDisplayName}</span>
                           <span>Tier: {f.tier}</span>
-                          {f.cwe && <span>CWE: {f.cwe}</span>}
+                          {f.cwe && <span>CWE: <a href={getCweUrl(f.cwe)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#0f3460', textDecoration: 'none', fontWeight: 600 }}>{f.cwe}</a></span>}
                           <span>Confidence: {f.confidence}</span>
                         </div>
                       </div>

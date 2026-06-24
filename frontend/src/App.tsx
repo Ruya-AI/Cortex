@@ -3,12 +3,14 @@ import { Dashboard } from './pages/Dashboard';
 import { QAExecutionPage } from './pages/QAExecution';
 import { ExecutionDetail } from './pages/ExecutionDetail';
 import { Reports } from './pages/Reports';
+import { RuleReference } from './pages/RuleReference';
 import { Admin } from './pages/Admin';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '\u{1F4CA}' },
   { path: '/qa-execution', label: 'QA Execution', icon: '\u{1F50D}' },
   { path: '/reports', label: 'Reports', icon: '\u{1F4C4}' },
+  { path: '/rules', label: 'Rule Reference', icon: '\u{1F4D6}' },
   { path: '/admin', label: 'Admin', icon: '⚙️' },
 ];
 
@@ -73,6 +75,7 @@ export default function App() {
             <Route path="/qa-execution" element={<QAExecutionPage />} />
             <Route path="/qa-execution/:id" element={<ExecutionDetail />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/rules" element={<RuleReference />} />
             <Route path="/admin" element={<Admin />} />
           </Routes>
         </main>
