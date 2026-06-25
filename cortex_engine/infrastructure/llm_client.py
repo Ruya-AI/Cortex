@@ -56,6 +56,10 @@ class AnthropicLLMClient(LLMClient):
         circuit_breaker_threshold: int = 5,
         circuit_breaker_cooldown: float = 60.0,
         audit_logger_fn=None,
+        provider: str | None = None,
+        api_key: str | None = None,
+        vertex_project_id: str | None = None,
+        vertex_region: str | None = None,
     ):
         self._primary_model = primary_model
         self._fallback_models = fallback_models or []
@@ -75,6 +79,12 @@ class AnthropicLLMClient(LLMClient):
         self._total_output_tokens = 0
         self._call_count = 0
 
+        # LLM provider config (explicit params take priority over env vars)
+        self._provider = provider
+        self._api_key = api_key
+        self._vertex_project_id = vertex_project_id
+        self._vertex_region = vertex_region
+
         # Initialize anthropic client lazily
         self._client = None
 
@@ -82,10 +92,12 @@ class AnthropicLLMClient(LLMClient):
         if self._client is None:
             import anthropic
             import os
-            use_vertex = os.environ.get("CLAUDE_CODE_USE_VERTEX", "")
-            project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "")
-            region = os.environ.get("CLOUD_ML_REGION", "global")
-            if use_vertex and project_id:
+            provider = self._provider or ("vertex_ai" if os.environ.get("CLAUDE_CODE_USE_VERTEX") else "anthropic")
+            project_id = self._vertex_project_id or os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "")
+            region = self._vertex_region or os.environ.get("CLOUD_ML_REGION", "global")
+            api_key = self._api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+
+            if provider == "vertex_ai" and project_id:
                 self._client = anthropic.AnthropicVertex(
                     project_id=project_id,
                     region=region,
@@ -93,7 +105,10 @@ class AnthropicLLMClient(LLMClient):
                 )
                 logger.info("Using Vertex AI (project=%s, region=%s)", project_id, region)
             else:
-                self._client = anthropic.Anthropic(max_retries=0, timeout=120.0)
+                kwargs: dict = {"max_retries": 0, "timeout": 120.0}
+                if api_key:
+                    kwargs["api_key"] = api_key
+                self._client = anthropic.Anthropic(**kwargs)
                 logger.info("Using direct Anthropic API")
         return self._client
 

@@ -137,7 +137,7 @@ def main(
     sys.exit(0)
 
 
-def _build_orchestrator(request):
+def _build_orchestrator(request, llm_config=None):
     """Composition root — create and wire all dependencies."""
     from cortex_engine.infrastructure.config import load_config
     from cortex_engine.infrastructure.repository_resolver import RepositoryResolver
@@ -172,7 +172,7 @@ def _build_orchestrator(request):
     cost_tracker = CostTracker()
 
     if any(t >= 2 for t in request.tiers):
-        review_engine, validation_engine = _build_agent_infrastructure(request, cost_tracker)
+        review_engine, validation_engine = _build_agent_infrastructure(request, cost_tracker, llm_config=llm_config)
 
     # Integrations
     dispatcher = IntegrationDispatcher()
@@ -303,7 +303,7 @@ def _register_tools(runner):
             pass
 
 
-def _build_agent_infrastructure(request, cost_tracker):
+def _build_agent_infrastructure(request, cost_tracker, llm_config=None):
     """Build agent review and validation engines."""
     from cortex_engine.agents.registry import AgentRegistry
     from cortex_engine.agents.memory import SemanticMemoryLoader
@@ -313,26 +313,39 @@ def _build_agent_infrastructure(request, cost_tracker):
     registry = AgentRegistry()
     memory_loader = SemanticMemoryLoader()
 
-    # Try to create LLM client
     import os
-    primary_model = os.environ.get("QA_LLM_PRIMARY_MODEL", "claude-opus-4-6")
-    fallback_model = os.environ.get("QA_LLM_FALLBACK_MODEL", "claude-sonnet-4-6")
-    max_retries = int(os.environ.get("QA_LLM_MAX_RETRIES", "3"))
+    if llm_config:
+        primary_model = llm_config.primary_model
+        fallback_model = llm_config.fallback_model
+        max_retries = llm_config.max_retries
+        provider = llm_config.provider
+        api_key = llm_config.api_key or None
+        vertex_project_id = llm_config.vertex_project_id or None
+        vertex_region = llm_config.vertex_region or None
+    else:
+        primary_model = os.environ.get("QA_LLM_PRIMARY_MODEL", "claude-opus-4-6")
+        fallback_model = os.environ.get("QA_LLM_FALLBACK_MODEL", "claude-sonnet-4-6")
+        max_retries = int(os.environ.get("QA_LLM_MAX_RETRIES", "3"))
+        provider = None
+        api_key = None
+        vertex_project_id = None
+        vertex_region = None
 
     llm_client = None
     validator_llm_client = None
     try:
         from cortex_engine.infrastructure.llm_client import AnthropicLLMClient
-        llm_client = AnthropicLLMClient(
-            primary_model=primary_model,
-            fallback_models=[fallback_model] if fallback_model else [],
-            max_retries=max_retries,
-        )
-        validator_llm_client = AnthropicLLMClient(
-            primary_model=primary_model,
-            fallback_models=[fallback_model] if fallback_model else [],
-            max_retries=max_retries,
-        )
+        llm_kwargs = {
+            "primary_model": primary_model,
+            "fallback_models": [fallback_model] if fallback_model else [],
+            "max_retries": max_retries,
+            "provider": provider,
+            "api_key": api_key,
+            "vertex_project_id": vertex_project_id,
+            "vertex_region": vertex_region,
+        }
+        llm_client = AnthropicLLMClient(**llm_kwargs)
+        validator_llm_client = AnthropicLLMClient(**llm_kwargs)
     except Exception as e:
         logging.getLogger(__name__).warning("LLM client init failed: %s", e)
 

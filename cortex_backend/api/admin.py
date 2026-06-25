@@ -262,7 +262,7 @@ async def update_setting(key: str, data: SettingUpdate, db: AsyncSession = Depen
 @router.get("/system-info")
 async def system_info():
     info = {
-        "web_version": "1.0.0",
+        "version": "2.0.0",
         "features_enabled": {
             "github": settings.enable_github,
             "linear": settings.enable_linear,

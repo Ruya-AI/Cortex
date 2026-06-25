@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-import threading
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, BackgroundTasks
@@ -12,7 +11,6 @@ from cortex_backend.models.qa_execution import QAExecution
 from cortex_backend.services.engine_bridge import EngineBridge
 
 logger = logging.getLogger(__name__)
-_llm_env_lock = threading.Lock()
 
 router = APIRouter(prefix="/api/qa", tags=["qa-execution"])
 
@@ -108,38 +106,29 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
 
 async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_limit):
     import asyncio
-    import os
     from cortex_backend.database import async_session
     from cortex_backend.api.ws import broadcast_progress
     from cortex_backend.services.admin_settings import AdminSettings
 
     loop = asyncio.get_running_loop()
 
+    # Load LLM config from DB and build an LLMConfig object (no env vars)
+    from cortex_engine.api import LLMConfig
     async with async_session() as settings_db:
-        llm_config = await AdminSettings.get_group(settings_db, "llm.")
-    db_cost_limit = float(llm_config.get("llm.cost_limit", "0"))
+        llm_settings = await AdminSettings.get_group(settings_db, "llm.")
+    db_cost_limit = float(llm_settings.get("llm.cost_limit", "0"))
     if not cost_limit and db_cost_limit > 0:
         cost_limit = db_cost_limit
 
-    def _apply_llm_env():
-        """Set LLM env vars under lock to prevent race with concurrent scans."""
-        with _llm_env_lock:
-            provider = llm_config.get("llm.provider", "vertex_ai")
-            if provider == "vertex_ai":
-                os.environ["CLAUDE_CODE_USE_VERTEX"] = "1"
-                project_id = llm_config.get("llm.vertex_project_id", "")
-                if project_id:
-                    os.environ["ANTHROPIC_VERTEX_PROJECT_ID"] = project_id
-                os.environ["CLOUD_ML_REGION"] = llm_config.get("llm.vertex_region", "global")
-                os.environ.pop("ANTHROPIC_API_KEY", None)
-            else:
-                os.environ.pop("CLAUDE_CODE_USE_VERTEX", None)
-                api_key = llm_config.get("llm.api_key", "")
-                if api_key:
-                    os.environ["ANTHROPIC_API_KEY"] = api_key
-            os.environ["QA_LLM_PRIMARY_MODEL"] = llm_config.get("llm.primary_model", "claude-opus-4-6")
-            os.environ["QA_LLM_FALLBACK_MODEL"] = llm_config.get("llm.fallback_model", "claude-sonnet-4-6")
-            os.environ["QA_LLM_MAX_RETRIES"] = llm_config.get("llm.max_retries", "3")
+    engine_llm_config = LLMConfig(
+        provider=llm_settings.get("llm.provider", "vertex_ai"),
+        api_key=llm_settings.get("llm.api_key", ""),
+        primary_model=llm_settings.get("llm.primary_model", "claude-opus-4-6"),
+        fallback_model=llm_settings.get("llm.fallback_model", "claude-sonnet-4-6"),
+        vertex_project_id=llm_settings.get("llm.vertex_project_id", ""),
+        vertex_region=llm_settings.get("llm.vertex_region", "global"),
+        max_retries=int(llm_settings.get("llm.max_retries", "3")),
+    )
 
     def on_progress(message: str):
         logger.info("QA progress [%s]: %s", execution_id[:8], message)
@@ -167,7 +156,6 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
         })
 
         try:
-            _apply_llm_env()
             bridge = EngineBridge()
             scan_result = await bridge.run_scan_async(
                 repo_url=repo_url,
@@ -176,6 +164,7 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
                 tiers=tiers,
                 cost_limit=cost_limit,
                 progress_callback=on_progress,
+                llm_config=engine_llm_config,
             )
 
             execution.status = "completed"

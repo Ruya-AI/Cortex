@@ -24,8 +24,9 @@ class EngineBridge:
         tiers: list[int] | None = None,
         cost_limit: float | None = None,
         progress_callback=None,
+        llm_config=None,
     ) -> dict:
-        from cortex_engine.api import create_scan_request, run_scan
+        from cortex_engine.api import create_scan_request, run_scan, LLMConfig
 
         request = create_scan_request(
             repo=repo_url,
@@ -44,7 +45,7 @@ class EngineBridge:
             if progress_callback:
                 progress_callback(msg)
 
-        result = run_scan(request, progress=capture_progress)
+        result = run_scan(request, progress=capture_progress, llm_config=llm_config)
 
         return {
             "scan_id": result.report_id,
