@@ -493,14 +493,17 @@ function CommitTab({ tiers, onTriggered }: { tiers: string; onTriggered: () => v
 function ExecutionHistory({ executionType }: { executionType: string }) {
   const [executions, setExecutions] = useState<QAExecution[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
   const load = useCallback(() => {
-    setLoading(true);
+    setLoading(true); setLoadError('');
     let url = `/api/qa/executions?limit=20&type=${executionType}`;
     if (statusFilter) url += `&status=${statusFilter}`;
     fetchApi<{ items: QAExecution[] }>(url)
-      .then(d => setExecutions(d.items)).catch(() => {}).finally(() => setLoading(false));
+      .then(d => setExecutions(d.items))
+      .catch((e: Error) => setLoadError(e.message || 'Failed to load executions'))
+      .finally(() => setLoading(false));
   }, [executionType, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -516,6 +519,7 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
           <button onClick={load} style={{ padding: '4px 14px', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginLeft: '8px' }}>Refresh</button>
         </div>
       </div>
+      {loadError && <div style={{ background: '#fff3f3', border: '1px solid #f5c2c7', borderRadius: '6px', padding: '10px 14px', marginBottom: '12px', fontSize: '13px', color: '#dc3545' }}>{loadError} <button onClick={load} style={{ marginLeft: '8px', padding: '2px 10px', border: '1px solid #dc3545', borderRadius: '4px', background: '#fff', color: '#dc3545', cursor: 'pointer', fontSize: '12px' }}>Retry</button></div>}
       {loading ? <p style={{ color: '#999' }}>Loading...</p> : (
         <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>

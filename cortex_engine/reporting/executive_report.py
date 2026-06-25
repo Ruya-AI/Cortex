@@ -269,5 +269,8 @@ Executive QA Report &mdash; {_e(data.get('report_id', ''))} &mdash; {_e(data.get
             HTML(string=h).write_pdf(str(path))
         except ImportError:
             path.with_suffix(".html").write_text(h, encoding="utf-8")
+        except MemoryError:
+            path.with_suffix(".html").write_text(h, encoding="utf-8")
+            logger.error("Executive PDF OOM; HTML fallback written to %s", path.with_suffix(".html"))
         except Exception as e:
-            logger.error("PDF failed: %s", e)
+            logger.error("Executive PDF failed: %s", e)

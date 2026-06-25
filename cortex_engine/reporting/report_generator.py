@@ -167,13 +167,24 @@ class ReportGenerator:
         # -- PDF output (WeasyPrint with HTML fallback) --------------------
         if "pdf" in formats:
             pdf_path = output_dir / f"{file_stem}.pdf"
-            html_content = self._render_html(report_data)
+
+            pdf_data = report_data
+            total_findings = len(report_data.get("findings", []))
+            max_pdf_findings = 500
+            if total_findings > max_pdf_findings:
+                logger.warning(
+                    "PDF capped at %d findings (total: %d) to prevent OOM",
+                    max_pdf_findings, total_findings,
+                )
+                pdf_data = {**report_data, "findings": report_data["findings"][:max_pdf_findings]}
+
+            html_content = self._render_html(pdf_data)
             try:
                 from weasyprint import HTML as WeasyprintHTML  # type: ignore[import-untyped]
 
                 WeasyprintHTML(string=html_content).write_pdf(str(pdf_path))
                 result["pdf_path"] = pdf_path
-                logger.info("PDF report written to %s", pdf_path)
+                logger.info("PDF report written to %s (%d findings)", pdf_path, min(total_findings, max_pdf_findings))
             except ImportError:
                 html_path = output_dir / f"{file_stem}.html"
                 html_path.write_text(html_content, encoding="utf-8")
@@ -181,6 +192,14 @@ class ReportGenerator:
                 logger.warning(
                     "WeasyPrint not available; HTML fallback written to %s",
                     html_path,
+                )
+            except MemoryError:
+                html_path = output_dir / f"{file_stem}.html"
+                html_path.write_text(html_content, encoding="utf-8")
+                result["pdf_path"] = html_path
+                logger.error(
+                    "WeasyPrint OOM with %d findings; HTML fallback written to %s",
+                    min(total_findings, max_pdf_findings), html_path,
                 )
 
         return result

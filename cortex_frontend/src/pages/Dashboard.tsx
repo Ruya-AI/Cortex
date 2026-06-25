@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { MetricsCard } from '../components/MetricsCard';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { fetchApi } from '../hooks/useApi';
 import { QAExecution } from '../types';
 
@@ -47,6 +48,7 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsDashboard | null>(null);
   const [patterns, setPatterns] = useState<PatternData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [active, setActive] = useState<Map<string, ActiveExecution>>(new Map());
   const [wsConnected, setWsConnected] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -55,11 +57,13 @@ export function Dashboard() {
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(() => {
+    setError('');
     Promise.all([
       fetchApi<{ items: QAExecution[] }>('/api/qa/executions?limit=10').catch(() => ({ items: [] })),
       fetchApi<AnalyticsDashboard>('/api/analytics/dashboard').catch(() => null),
       fetchApi<PatternData>('/api/analytics/patterns').catch(() => null),
     ]).then(([execData, analyticsData, patternsData]) => {
+      if (!analyticsData && execData.items.length === 0) setError('Failed to load dashboard data. Check that the backend is running.');
       setExecutions(execData.items);
       setAnalytics(analyticsData);
       setPatterns(patternsData);
@@ -134,6 +138,7 @@ export function Dashboard() {
   }, [loadData]);
 
   if (loading) return <div><h2>Dashboard</h2><p style={{ color: '#999' }}>Loading...</p></div>;
+  if (error) return <div><h2>Dashboard</h2><ErrorBanner message={error} onRetry={loadData} /></div>;
 
   const stats = analytics || { total_scans: 0, total_findings: 0, quality_gate_pass_rate: 0, total_cost: 0, avg_duration_seconds: 0, total_prs_tracked: 0, total_linear_tasks: 0, severity_distribution: {} };
   const severityEntries = Object.entries(stats.severity_distribution || {});

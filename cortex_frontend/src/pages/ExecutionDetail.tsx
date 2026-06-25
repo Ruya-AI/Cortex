@@ -46,10 +46,14 @@ export function ExecutionDetail() {
   const [expandedFinding, setExpandedFinding] = useState<string | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<QAFinding | null>(null);
 
+  const [loadError, setLoadError] = useState('');
+
   useEffect(() => {
     if (!id) return;
     fetchApi<QAExecution>(`/api/qa/executions/${id}`)
-      .then(setExec).catch(() => {}).finally(() => setLoading(false));
+      .then(setExec)
+      .catch((e: Error) => setLoadError(e.message || 'Failed to load execution'))
+      .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
@@ -72,7 +76,7 @@ export function ExecutionDetail() {
   };
 
   if (loading) return <div><p style={{ color: '#999' }}>Loading...</p></div>;
-  if (!exec) return <div><p style={{ color: '#dc3545' }}>Execution not found.</p><Link to="/qa-execution" style={{ color: '#0f3460' }}>Back</Link></div>;
+  if (!exec) return <div><p style={{ color: '#dc3545' }}>{loadError ? `Error: ${loadError}` : 'Execution not found.'}</p><Link to="/qa-execution" style={{ color: '#0f3460' }}>Back to QA Execution</Link></div>;
 
   const repoName = exec.repository_url.replace(/\.git$/, '').split('/').slice(-2).join('/');
   const isFailed = exec.status === 'failed';

@@ -61,11 +61,8 @@ class FileSet:
     skipped_large: list[str] = field(default_factory=list)
     skipped_excluded: list[str] = field(default_factory=list)
     skipped_hidden: list[str] = field(default_factory=list)
-    flagged_files: list[str] = field(default_factory=list)
     hygiene_findings: list[Finding] = field(default_factory=list)
     skip_summary: dict = field(default_factory=dict)
-    privacy_excluded: list[str] = field(default_factory=list)
-    generated_files: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
