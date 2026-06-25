@@ -5,7 +5,7 @@ import sqlite3
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DB_PATH = ".qa-platform.db"
+_DEFAULT_DB_PATH = ".cortex.db"
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:

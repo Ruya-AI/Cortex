@@ -57,7 +57,7 @@ function NavSidebar() {
         })}
       </div>
       <div style={{ marginTop: 'auto', padding: '16px 20px', fontSize: '11px', color: '#555' }}>
-        Cortex QA Platform v2.0<br />
+        Cortex QA Platform<br />
         Audit-only — does not modify code.
       </div>
     </nav>

@@ -78,7 +78,7 @@ class GitHubIntegration(IntegrationTarget):
                     timeout=30,
                     json={
                         "state": state,
-                        "context": "qa-platform",
+                        "context": "cortex-qa",
                         "description": gate_result.reasoning[:140],
                     },
                 )

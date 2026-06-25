@@ -44,7 +44,7 @@ class RepositoryResolver:
         )
 
     def _clone_remote(self, request: ScanRequest) -> RepositoryContext:
-        target = Path(tempfile.mkdtemp(prefix="qa-platform-clone-"))
+        target = Path(tempfile.mkdtemp(prefix="cortex-clone-"))
         try:
             result = GitOperations.clone_repo(
                 request.repo,

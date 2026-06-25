@@ -31,7 +31,7 @@ def main(
     report, output, pr_number, post_comment, github_token, cost_limit,
     dry_run, verbose,
 ):
-    """QA Platform — Automated code review and analysis.
+    """Cortex — Automated code review and analysis.
 
     Identifies issues, provides explanations, suggests improvements,
     and recommends fixes. Does NOT modify code.
@@ -68,7 +68,7 @@ def main(
 
     # Display header
     click.echo("=" * 60)
-    click.echo("  QA Platform v2.0 — Code Review & Analysis")
+    click.echo("  Cortex — Code Review & Analysis")
     click.echo("  Identifies and reports. Does NOT modify code.")
     click.echo("=" * 60)
     click.echo()

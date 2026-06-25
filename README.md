@@ -1,10 +1,10 @@
-# QA Platform v2.0
+# Cortex QA Platform
 
 **Automated Code Review and Analysis Platform**
 
-An agentic QA platform that combines 27 deterministic static analysis tools with 5 specialized AI agents to identify issues, provide explanations, suggest improvements, and recommend fixes — across correctness, security, design, and cross-file consistency.
+Cortex is an agentic QA platform that combines 27 deterministic static analysis tools with 5 specialized AI agents to identify issues, provide explanations, suggest improvements, and recommend fixes — across correctness, security, design, and cross-file consistency.
 
-**This platform identifies, reports, and recommends. It does NOT modify code.**
+**Cortex identifies, reports, and recommends. It does NOT modify code.**
 
 ---
 
@@ -769,64 +769,41 @@ When any LLM call fails, findings are **retained, not suppressed**:
 ## Project Structure
 
 ```
-qa_platform_v2/
-├── src/qa_platform/
-│   ├── __init__.py                    # __version__ = "2.0.0"
-│   ├── core/                          # 13 files — Finding entity, schemas, processing pipeline
-│   │   ├── finding.py                 #   Finding dataclass + 6 enums
-│   │   ├── schemas.py                 #   21 dataclass schemas
-│   │   ├── finding_factory.py         #   Validated finding creation
-│   │   ├── finding_manager.py         #   8-step processing pipeline orchestrator
-│   │   ├── finding_line_validator.py   #   Clamp line numbers to file length
-│   │   ├── finding_deduplicator.py    #   Same file + ±3 lines + similar title → merge
-│   │   ├── finding_clusterer.py       #   Group by root cause
-│   │   ├── finding_ranker.py          #   Sort by severity × confidence
-│   │   ├── diff_classifier.py         #   introduced / modified / pre_existing
-│   │   ├── author_attributor.py       #   Git blame → PR author → default
-│   │   ├── snippet_extractor.py       #   Code context with markers
-│   │   ├── suppression.py             #   Rule matching with expiry
-│   │   └── text_sanitizer.py          #   Control character stripping
-│   ├── agents/                        # 9 files — 5 agent implementations + infrastructure
-│   │   ├── base.py                    #   ReviewAgent ABC
-│   │   ├── correctness.py             #   Agent 1: constructive execution tracing
-│   │   ├── security.py                #   Agent 2: adversarial SAST validation + CWE
-│   │   ├── design.py                  #   Agent 3: evaluative structural assessment
-│   │   ├── cross_file.py              #   Agent 4: comparative multi-file analysis
-│   │   ├── validator.py               #   Agent 5: skeptical adversarial challenge
-│   │   ├── registry.py                #   Agent discovery and registration
-│   │   ├── tool_provider.py           #   Read-only tools for agent code exploration
-│   │   └── memory.py                  #   Semantic memory loader (SAST rules, CWE, conventions)
-│   ├── tools/                         # 29 files — 27 tool wrappers + base + runner
-│   ├── orchestration/                 # 4 files — Pipeline controller + engines
-│   │   ├── orchestrator.py            #   14-phase scan pipeline (never raises)
-│   │   ├── review_engine.py           #   Parallel agent execution
-│   │   ├── validation_engine.py       #   Batched validator with fail-open
-│   │   └── cost_tracker.py            #   Per-agent LLM cost tracking
-│   ├── assessment/                    # 3 files — Quality gate + risk scorer
-│   ├── reporting/                     # 2 files — Full report + executive summary
-│   ├── integrations/                  # 4 files — GitHub, Linear, Slack, dispatcher
-│   ├── infrastructure/                # 11 files — Git, LLM client, config, persistence
-│   │   ├── llm_client.py              #   Anthropic client with circuit breaker + retry + fallback
-│   │   ├── git.py                     #   Git subprocess wrapper (all read-only)
-│   │   ├── config.py                  #   YAML config loader with env var resolution
-│   │   ├── config_schema.py           #   Pydantic models for .qa-config.yml
-│   │   ├── database.py                #   SQLite schema (5 tables)
-│   │   └── ...                        #   Repositories, audit logger, resolver, hygiene
-│   ├── knowledge/                     # 3 JSON files — Bundled knowledge for agents
-│   │   ├── sast_rules.json            #   36 SAST rules with CWE mappings
-│   │   ├── cwe_tree.json              #   27-entry CWE taxonomy hierarchy
-│   │   └── design_principles.json     #   SOLID principles + complexity thresholds
-│   └── cli/
-│       └── run.py                     #   CLI entry point (composition root)
-├── prompts/                           # 5 externalized agent prompt files
-│   ├── correctness_agent.txt
-│   ├── security_agent.txt
-│   ├── design_agent.txt
-│   ├── cross_file_agent.txt
-│   └── validator_agent.txt
-├── tests/                             # 28 unit tests (all passing)
-├── pyproject.toml
-└── README.md
+cortex/
+├── cortex_engine/                     # Independent QA execution engine
+│   ├── api.py                         #   Public API: create_scan_request(), run_scan()
+│   ├── cli/run.py                     #   Standalone CLI entry point
+│   ├── core/                          #   Finding entity, schemas, processing pipeline
+│   ├── agents/                        #   5 specialized AI agents + infrastructure
+│   ├── tools/                         #   27 tool wrappers + base + runner + repo scanner
+│   ├── orchestration/                 #   14-phase scan pipeline + engines
+│   ├── assessment/                    #   Quality gate + risk scorer
+│   ├── reporting/                     #   Full report + executive summary (PDF cap: 500 findings)
+│   ├── integrations/                  #   GitHub, Linear, Slack, dispatcher
+│   ├── infrastructure/                #   Git, LLM client, config, hygiene checker
+│   └── knowledge/                     #   SAST rules, CWE tree, design principles
+│
+├── cortex_backend/                    # Backend service layer
+│   ├── main.py                        #   FastAPI app, startup recovery, stale reaper
+│   ├── api/                           #   11 API routers (execution, reports, admin, etc.)
+│   ├── models/                        #   SQLAlchemy models (PostgreSQL)
+│   ├── services/                      #   EngineBridge, analytics, GitHub, admin settings
+│   └── tasks/                         #   Background runners (QA, PR fetch, Linear sync)
+│
+├── cortex_frontend/                   #   React + TypeScript web UI
+│   └── src/
+│       ├── pages/                     #   Dashboard, QA Execution, Reports, Rule Reference, Admin
+│       ├── components/                #   MetricsCard, ErrorBanner
+│       └── data/                      #   Rule reference (28 tools, CWE documentation)
+│
+├── deploy/                            #   Deployment infrastructure
+│   ├── docker/                        #   Dockerfiles, Compose, Nginx
+│   ├── scripts/                       #   start.sh, stop.sh, restart.sh, health.sh
+│   ├── config/                        #   development/.env, production/.env
+│   └── docs/                          #   DEPLOYMENT.md
+│
+├── tests/                             # 28 unit tests
+└── pyproject.toml
 ```
 
 ---
@@ -835,54 +812,40 @@ qa_platform_v2/
 
 ```bash
 # Install with dev dependencies
-pip install -e ".[dev]"
+pip install -e ".[dev,tier1,backend]"
 
 # Run tests
-pytest
-
-# Run with coverage
-pytest --cov=qa_platform --cov-report=term-missing
+PYTHONPATH=. pytest
 
 # Lint
-ruff check src/ tests/
+ruff check cortex_engine/ cortex_backend/ tests/
 
 # Type check
-mypy src/qa_platform/core/
+mypy cortex_engine/core/
+
+# Engine standalone (CLI)
+PYTHONPATH=. python -m cortex_engine.cli.run --repo . --tiers 1 --dry-run
+
+# Backend
+PYTHONPATH=. uvicorn cortex_backend.main:app --port 8000
+
+# Frontend
+cd cortex_frontend && npm install && npm run build
 ```
 
 ### Adding a New Tier 1 Tool
 
-1. Create `src/qa_platform/tools/my_tool.py`
+1. Create `cortex_engine/tools/my_tool.py`
 2. Extend `Tier1Tool` with `is_available()`, `is_applicable()`, `run()`
 3. Use `FindingFactory.create_from_tool()` for findings
-4. Register in `cli/run.py` `_register_tools()`
+4. Register in `cortex_engine/cli/run.py` `_register_tools()`
 
 ### Adding a New Agent
 
-1. Create `src/qa_platform/agents/my_agent.py` extending `ReviewAgent`
+1. Create `cortex_engine/agents/my_agent.py` extending `ReviewAgent`
 2. Create `prompts/my_agent.txt` with system prompt
-3. Register in `cli/run.py` `_build_agent_infrastructure()`
-
-### Customizing Agent Prompts
-
-Edit files in `prompts/` directory directly — no code changes required. Prompts are loaded at runtime.
+3. Register in `cortex_engine/cli/run.py` `_build_agent_infrastructure()`
 
 ---
 
-## Research Foundation
-
-This platform's architecture is grounded in evidence from peer-reviewed research:
-
-| Paper | Venue | Key Contribution |
-|---|---|---|
-| SAST-Genius | IEEE S&P 2025 | SAST+LLM hybrid: 91% false positive reduction, 89.5% precision |
-| RADAR | Meta (535K diffs) | Multi-stage funnel, risk scoring, production-validated |
-| QASecClaw | arXiv 2026 | Pipeline agents, fail-open safety, 88.6% FP reduction |
-| Automated CR in Practice | ICSE 2025 | 73.8% resolution rate, precision > recall for trust |
-| AgenticSCR | FSE 2026 | Detector-validator chain, semantic memory (+5.7%), agentic tool use |
-| RevAgent | arXiv 2025 | Category-specific agents outperform general, critic = most impactful |
-| Rethinking Agentic CR | TOSEM 2026 | 5-stage lifecycle, reviewers as supervisory operators |
-
----
-
-*QA Platform v2.0 — Identifies, reports, and recommends. Does NOT modify code.*
+*Cortex — Identifies, reports, and recommends. Does NOT modify code.*
