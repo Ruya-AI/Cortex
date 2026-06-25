@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qa-platform"
+name = "cortex-qa-platform"
 version = "2.0.0"
-description = "Automated QA Platform for quantitative development"
+description = "Cortex — Automated QA Platform for code review and analysis"
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.1",
@@ -35,12 +35,20 @@ tier1 = [
     "checkov>=3.0",
     "pip-licenses>=4.0",
 ]
+backend = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "sqlalchemy>=2.0",
+    "asyncpg>=0.29",
+    "python-dateutil>=2.8",
+]
 
 [project.scripts]
-qa = "qa_platform.cli.run:main"
+cortex-qa = "cortex_engine.cli.run:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["cortex_engine*", "cortex_backend*"]
 
 [tool.ruff]
 line-length = 120
