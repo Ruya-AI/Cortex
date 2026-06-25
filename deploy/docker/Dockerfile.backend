@@ -1,0 +1,39 @@
+FROM python:3.12-slim AS base
+
+LABEL maintainer="Ruya AI" \
+      service="cortex-backend" \
+      description="Cortex Backend API — FastAPI service layer"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    shellcheck \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install external scanning tools (needed by cortex_engine)
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin && \
+    curl -sfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | sh -s -- -b /usr/local/bin && \
+    curl -sfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o /usr/local/bin/osv-scanner && \
+    chmod +x /usr/local/bin/osv-scanner
+
+WORKDIR /app
+
+COPY pyproject.toml .
+COPY cortex_engine/ cortex_engine/
+COPY cortex_backend/ cortex_backend/
+
+# Copy pre-built frontend if available
+COPY cortex_frontend/dist/ cortex_frontend/dist/
+
+RUN pip install --no-cache-dir -e ".[tier1,backend]"
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    CORTEX_DATABASE_URL=postgresql+asyncpg://cortex:cortex@postgres:5432/cortex
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+CMD ["uvicorn", "cortex_backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,60 @@
+name: Cortex QA Scan
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 'Repository URL to scan'
+        required: true
+      tiers:
+        description: 'QA tiers (1, 1,2, or 1,2,3)'
+        default: '1'
+
+jobs:
+  qa-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -e ".[tier1]"
+
+      - name: Install scanning tools
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run QA scan (PR)
+        if: github.event_name == 'pull_request'
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m cortex_engine.cli.run \
+            --repo . \
+            --tiers 1 \
+            --report json
+
+      - name: Run QA scan (manual)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m cortex_engine.cli.run \
+            --repo "${{ inputs.repository }}" \
+            --tiers "${{ inputs.tiers }}" \
+            --report json,pdf
+
+      - name: Upload QA reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-reports
+          path: .qa-reports/
+          if-no-files-found: ignore

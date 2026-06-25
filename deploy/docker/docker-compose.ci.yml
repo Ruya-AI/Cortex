@@ -1,0 +1,20 @@
+version: "3.8"
+
+# CI/CD configuration — cortex_engine only (for pipeline QA execution)
+services:
+  engine:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.engine
+    container_name: cortex-engine-ci
+    environment:
+      - PYTHONPATH=/app
+      - QA_LLM_PRIMARY_MODEL=${QA_LLM_PRIMARY_MODEL:-claude-opus-4-6}
+      - QA_LLM_FALLBACK_MODEL=${QA_LLM_FALLBACK_MODEL:-claude-sonnet-4-6}
+      - CLAUDE_CODE_USE_VERTEX=${CLAUDE_CODE_USE_VERTEX:-}
+      - ANTHROPIC_VERTEX_PROJECT_ID=${ANTHROPIC_VERTEX_PROJECT_ID:-}
+      - CLOUD_ML_REGION=${CLOUD_ML_REGION:-global}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - /tmp/cortex-ci-reports:/app/.qa-reports
+      - /tmp/cortex-ci-clones:/tmp

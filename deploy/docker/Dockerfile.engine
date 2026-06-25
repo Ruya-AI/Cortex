@@ -1,0 +1,32 @@
+FROM python:3.12-slim AS base
+
+LABEL maintainer="Ruya AI" \
+      service="cortex-engine" \
+      description="Cortex QA Engine — independent code analysis service"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    shellcheck \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install external scanning tools
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin && \
+    curl -sfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | sh -s -- -b /usr/local/bin && \
+    curl -sfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o /usr/local/bin/osv-scanner && \
+    chmod +x /usr/local/bin/osv-scanner
+
+WORKDIR /app
+
+COPY pyproject.toml .
+COPY cortex_engine/ cortex_engine/
+
+RUN pip install --no-cache-dir -e ".[tier1]"
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "from cortex_engine.api import create_scan_request; print('ok')" || exit 1
+
+ENTRYPOINT ["python", "-m", "cortex_engine.cli.run"]
