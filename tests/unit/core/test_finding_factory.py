@@ -1,6 +1,6 @@
 from __future__ import annotations
-from qa_platform.core.finding import Severity, FindingCategory, Confidence, Evidence
-from qa_platform.core.finding_factory import FindingFactory
+from cortex_engine.core.finding import Severity, FindingCategory, Confidence, Evidence
+from cortex_engine.core.finding_factory import FindingFactory
 
 
 class TestFindingFactory:

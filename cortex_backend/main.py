@@ -108,8 +108,8 @@ async def _stale_execution_reaper():
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0",
-    description="Cortex QA Platform — Web Extension",
+    version="2.0.0",
+    description="Cortex QA Platform — Backend Service Layer",
     lifespan=lifespan,
 )
 

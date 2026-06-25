@@ -14,7 +14,7 @@ node_modules
 .coverage
 htmlcov
 *.egg-info
-dist
+!cortex_frontend/dist
 .env
 .env.*
 deploy/config/*/.env

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import pytest
-from qa_platform.core.finding import (
+from cortex_engine.core.finding import (
     Finding, Severity, Confidence, FindingCategory, ValidationStatus,
     Classification, LifecycleState, Evidence, AuthorAttribution,
 )

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from qa_platform.core.text_sanitizer import sanitize
+from cortex_engine.core.text_sanitizer import sanitize
 
 
 class TestSanitizer:

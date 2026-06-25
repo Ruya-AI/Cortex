@@ -1,6 +1,6 @@
 from __future__ import annotations
-from qa_platform.core.finding import Finding, Severity, Confidence
-from qa_platform.assessment.quality_gate import QualityGate
+from cortex_engine.core.finding import Finding, Severity, Confidence
+from cortex_engine.assessment.quality_gate import QualityGate
 
 
 class TestQualityGate:

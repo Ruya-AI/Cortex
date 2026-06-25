@@ -1,8 +1,8 @@
 from __future__ import annotations
 from pathlib import Path
-from qa_platform.core.finding import Finding, Severity, Confidence, FindingCategory, Classification
-from qa_platform.core.schemas import ChangeSet, RepositoryContext, ProcessedFindings
-from qa_platform.core.finding_manager import FindingManager
+from cortex_engine.core.finding import Finding, Severity, Confidence, FindingCategory, Classification
+from cortex_engine.core.schemas import ChangeSet, RepositoryContext, ProcessedFindings
+from cortex_engine.core.finding_manager import FindingManager
 
 
 class TestFindingManager:

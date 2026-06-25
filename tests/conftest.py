@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from qa_platform.core.finding import (
+from cortex_engine.core.finding import (
     Confidence,
     Evidence,
     Finding,
