@@ -392,7 +392,7 @@ Executed AFTER all agents complete. No LLM. Algorithmic. Order is invariant — 
 
 ```bash
 # Clone or navigate to the project
-cd qa_platform_v2
+cd cortex
 
 # Install the platform with core dependencies
 pip install -e .
