@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import select
@@ -40,8 +40,8 @@ async def run_qa_for_pr(
             tiers=",".join(str(t) for t in (tiers or [1, 2])),
             trigger="web-ui",
             status="running",
-            started_at=datetime.utcnow(),
-            created_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
         )
         db.add(execution)
 
@@ -126,7 +126,7 @@ async def run_qa_for_pr(
             pr.qa_status = "failed"
 
         finally:
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = datetime.now(timezone.utc)
             await db.commit()
 
 

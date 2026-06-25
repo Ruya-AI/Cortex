@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from cortex_backend.database import Base
@@ -31,7 +31,7 @@ class PullRequest(Base):
     # Timestamps
     github_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     github_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Owner/repo for display
     owner: Mapped[str] = mapped_column(String(255), default="")

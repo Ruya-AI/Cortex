@@ -1,6 +1,6 @@
 # Document 02: Technical Design Document (TDD)
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

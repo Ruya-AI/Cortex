@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -47,7 +47,7 @@ async def create_linear_tasks_for_execution(execution_id: str):
                 title=f"[{finding.severity.upper()}] {finding.title[:100]}",
                 status="created",
                 priority=finding.severity,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(task)
 

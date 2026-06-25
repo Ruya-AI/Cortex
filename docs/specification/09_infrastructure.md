@@ -1,13 +1,13 @@
 # Document 09: Infrastructure Documentation
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---
 
 ## 1. Deployment Model
 
-**Primary**: Python CLI installed via `pip install qa-platform`. Runs on developer machines and CI/CD runners. No server infrastructure.
+**Primary**: Python CLI installed via `pip install cortex`. Runs on developer machines and CI/CD runners. No server infrastructure.
 
 **Secondary**: Docker container for CI/CD environments. Base: python:3.11-slim. Includes all pip tools and optional external binaries. ~375MB total.
 
@@ -16,7 +16,7 @@
 ```
 Layer 1: python:3.11-slim (~45MB)
 Layer 2: git, shellcheck (~30MB)
-Layer 3: qa-platform + pip tools (ruff, bandit, mypy, semgrep, radon, etc.) (~200MB)
+Layer 3: cortex + pip tools (ruff, bandit, mypy, semgrep, radon, etc.) (~200MB)
 Layer 4: Optional binaries (gitleaks, hadolint, trivy, osv-scanner) (~100MB)
 Entrypoint: qa
 ```
@@ -35,7 +35,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with: { fetch-depth: 0 }
-    - run: pip install qa-platform
+    - run: pip install cortex
     - run: qa run --repo . --pr ${{ github.event.pull_request.number }} --vs ${{ github.base_ref }} --post-comment --report json
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

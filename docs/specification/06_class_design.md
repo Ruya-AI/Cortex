@@ -1,6 +1,6 @@
 # Document 06: Class-Level Design Documentation
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

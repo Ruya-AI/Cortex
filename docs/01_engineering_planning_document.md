@@ -1,4 +1,4 @@
-# QA Platform v2 — Engineering Planning Document
+# Cortex QA Platform — Engineering Planning Document
 
 **Document Type**: Engineering Planning Foundation
 **Status**: Planning — No Implementation

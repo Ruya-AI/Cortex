@@ -1,6 +1,6 @@
 # Document 12: Coding Agent Instructions
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 **Audience**: Autonomous coding agents (Claude, Copilot, or similar)
@@ -30,7 +30,7 @@
 Create this exact directory structure:
 
 ```
-src/qa_platform/
+cortex_engine/
   __init__.py              → exports __version__
   core/
     __init__.py

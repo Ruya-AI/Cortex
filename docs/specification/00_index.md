@@ -1,4 +1,4 @@
-# QA Platform v2 — Complete Technical Specification
+# Cortex QA Platform — Complete Technical Specification
 
 **Version**: 2.0
 **Date**: 2026-06-18

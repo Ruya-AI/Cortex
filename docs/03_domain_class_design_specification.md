@@ -1,4 +1,4 @@
-# QA Platform v2 — Domain and Class-Level Design Specification
+# Cortex QA Platform — Domain and Class-Level Design Specification
 
 **Document Type**: Implementation-Ready Technical Design
 **Status**: Design — No Implementation

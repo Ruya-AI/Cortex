@@ -1,6 +1,6 @@
 # Document 03: System Architecture Document
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

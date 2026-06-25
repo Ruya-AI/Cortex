@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -59,7 +59,7 @@ async def fetch_prs_for_all_repos():
                             owner=repo.owner,
                             repo_name=repo.repo_name,
                             **pr_data,
-                            fetched_at=datetime.utcnow(),
+                            fetched_at=datetime.now(timezone.utc),
                         )
                         db.add(pr)
 

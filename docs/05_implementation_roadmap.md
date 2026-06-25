@@ -1,4 +1,4 @@
-# QA Platform v2 — Implementation Roadmap
+# Cortex QA Platform — Implementation Roadmap
 
 **Document Type**: Phased Engineering Execution Plan
 **Status**: Planning — No Implementation
@@ -37,7 +37,7 @@ This phase proves the architecture works before introducing AI complexity.
 
 | Task | Description | Output |
 |---|---|---|
-| **1.1.1** Initialize Python project | Python 3.11+, `pyproject.toml`, src layout (`src/qa_platform/`), `ruff` for linting, `pytest` for testing | Project skeleton with CI-ready structure |
+| **1.1.1** Initialize Python project | Python 3.11+, `pyproject.toml`, src layout (`cortex_engine/`), `ruff` for linting, `pytest` for testing | Project skeleton with CI-ready structure |
 | **1.1.2** Define package structure | Directories matching domain decomposition: `core/` (Finding, schemas), `agents/` (interfaces), `tools/` (Tier 1), `orchestration/`, `assessment/`, `reporting/`, `integrations/`, `infrastructure/` (git, llm, config, persistence) | Directory tree matching architecture spec Section 2 |
 | **1.1.3** Set up development tooling | ruff config, pytest config, pre-commit hooks (ruff check), Makefile with `lint`, `test`, `typecheck` targets | Development environment reproducible from README |
 | **1.1.4** Create `.qa-config.yml` schema | Pydantic models for full configuration schema (from architecture spec Section 2.13). All fields with defaults. Validation with clear error messages. | `QAConfig` Pydantic model, passes validation tests |
@@ -408,7 +408,7 @@ Harden the platform for production CI/CD deployment: performance optimization, r
 | **4.5.1** Create Dockerfile | Multi-stage build. Python 3.11 slim base. All pip tools. Optional external binaries layer. Entrypoint: `qa`. | `Dockerfile` |
 | **4.5.2** Create GitHub Actions workflow example | Reusable workflow YAML. Checkout → install → run scan → post comments → upload report artifact. | `.github/workflows/qa-review.yml` example |
 | **4.5.3** Create Kubernetes Job spec example | Job template for K8s-based execution. Secret references. Resource limits. | `k8s/qa-scan-job.yaml` example |
-| **4.5.4** Create pip package | `pyproject.toml` with all dependencies. CLI entry point. PyPI-ready packaging. | `pip install qa-platform` works |
+| **4.5.4** Create pip package | `pyproject.toml` with all dependencies. CLI entry point. PyPI-ready packaging. | `pip install cortex` works |
 
 ### 4.6 Documentation
 
@@ -447,7 +447,7 @@ Harden the platform for production CI/CD deployment: performance optimization, r
 8. Privacy exclusion prevents specified paths from reaching LLM API.
 9. Structured logs with correlation IDs produced for every scan.
 10. Docker image builds and runs successfully.
-11. `pip install qa-platform && qa run --repo . --tiers 1 --report json` works from a clean install.
+11. `pip install cortex && qa run --repo . --tiers 1 --report json` works from a clean install.
 12. README, INSTALL, and ARCHITECTURE docs are complete and accurate.
 
 ## Expected Outputs

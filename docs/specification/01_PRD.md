@@ -1,6 +1,6 @@
 # Document 01: Product Requirements Document (PRD)
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

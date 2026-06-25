@@ -1,6 +1,6 @@
 # Document 05: Domain Model Documentation
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

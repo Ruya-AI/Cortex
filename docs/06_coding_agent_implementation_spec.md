@@ -1,4 +1,4 @@
-# QA Platform v2 — Coding Agent Implementation Specification
+# Cortex QA Platform — Coding Agent Implementation Specification
 
 **Document Type**: Implementation Manual for Autonomous Coding Agent
 **Status**: Ready for Implementation
@@ -14,9 +14,9 @@
 ## 1.1 Root Layout
 
 ```
-qa-platform-v2/
+cortex-v2/
 ├── src/
-│   └── qa_platform/
+│   └── cortex_engine/
 │       ├── __init__.py              # Package init, exports __version__
 │       ├── core/                    # Core domain (Finding, schemas) — ZERO external deps
 │       ├── agents/                  # Agent domain (interfaces + implementations)
@@ -69,7 +69,7 @@ core/
 ```
 
 **Rules for `core/`**:
-- NO imports from any other `qa_platform` package
+- NO imports from any other `cortex_engine` package
 - NO imports from external libraries (no anthropic, no httpx, no pydantic in entity definitions)
 - Exception: Python stdlib only (dataclasses, enum, datetime, re, pathlib, hashlib)
 - Pydantic is allowed ONLY in `schemas.py` for ScanRequest/ScanResult validation
@@ -255,7 +255,7 @@ from pathlib import Path
 import httpx
 
 # internal
-from qa_platform.core.finding import Finding, Severity
+from cortex_engine.core.finding import Finding, Severity
 ```
 
 Order: `__future__` → stdlib → third-party → internal. Separated by blank lines.
@@ -680,7 +680,7 @@ Execute these steps strictly in order. Each step produces testable output before
 
 ## 5.1 Unit Tests
 
-**Location**: `tests/unit/` — mirrors `src/qa_platform/` structure.
+**Location**: `tests/unit/` — mirrors `cortex_engine/` structure.
 
 **What to unit test**:
 - Every method in `core/` — these are pure functions with no I/O
@@ -758,7 +758,7 @@ test_risk_score_auth_path_always_high()
 
 | # | Mistake | Why It's Wrong | What to Do Instead |
 |---|---|---|---|
-| 1 | **Importing from `core/` into `infrastructure/` at module level and vice versa** | Creates circular dependency | `core/` NEVER imports from any other qa_platform package. `infrastructure/` imports from `core/`. |
+| 1 | **Importing from `core/` into `infrastructure/` at module level and vice versa** | Creates circular dependency | `core/` NEVER imports from any other cortex_engine package. `infrastructure/` imports from `core/`. |
 | 2 | **Hardcoding agent prompts in Python files** | Prevents editing prompts without code changes | Load prompts from `prompts/*.txt` files at runtime |
 | 3 | **Catching bare `except:` in tool wrappers** | Hides bugs, makes debugging impossible | Catch `(subprocess.TimeoutExpired, FileNotFoundError, OSError)` specifically |
 | 4 | **Using `splitlines()` inconsistently for line counting** | Python's `splitlines()` treats `\x0b`, `\x0c` as line breaks — different from tool line counting | Use `splitlines()` consistently across ALL line-counting code (finding_line_validator, snippet_extractor, author_attributor) |
@@ -785,7 +785,7 @@ test_risk_score_auth_path_always_high()
 | C1 | **Audit-only**: The platform NEVER modifies the repository under evaluation | No write tools in agent tool set. Clone-based isolation. Automated test verifies zero files modified. |
 | C2 | **Fail-open**: LLM failures retain findings, never suppress them | Every LLM call site has fail-open handling. Security Agent retains ALL SAST findings on failure. Validator marks unprocessed findings as UNVALIDATED. |
 | C3 | **Core has zero external dependencies** | `core/` uses Python stdlib only. Pydantic allowed only in `infrastructure/config_schema.py`. |
-| C4 | **Dependencies point inward** | `core/` imports nothing from other qa_platform packages. Verified by import linter. |
+| C4 | **Dependencies point inward** | `core/` imports nothing from other cortex_engine packages. Verified by import linter. |
 | C5 | **Agent prompts are externalized** | Loaded from `prompts/*.txt` at runtime. Never hardcoded in Python. |
 | C6 | **Every subprocess call has a timeout** | Default 60s for tools, 300s for git clone, 120s for LLM. No subprocess call without `timeout=` parameter. |
 | C7 | **Temperature = 0 for all LLM calls** | Deterministic output. Set in LLM client, not configurable per agent. |

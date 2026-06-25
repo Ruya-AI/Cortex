@@ -1,4 +1,4 @@
-# QA Platform v2 — Agentic Architecture Specification
+# Cortex QA Platform — Agentic Architecture Specification
 
 **Document Type**: AI Agent System Design
 **Status**: Design — No Implementation

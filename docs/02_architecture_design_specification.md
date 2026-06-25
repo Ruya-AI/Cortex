@@ -1,4 +1,4 @@
-# QA Platform v2 — Architecture Design Specification
+# Cortex QA Platform — Architecture Design Specification
 
 **Document Type**: Architecture Specification
 **Status**: Design — No Implementation
@@ -965,15 +965,15 @@ All tokens are read from environment variables or `.qa-config.yml` (with environ
 
 **Primary deployment: CLI binary / pip package**
 
-The platform is a Python CLI application installed via `pip install qa-platform`. It runs on the developer's machine or in CI/CD environments. No server infrastructure required for core functionality.
+The platform is a Python CLI application installed via `pip install cortex`. It runs on the developer's machine or in CI/CD environments. No server infrastructure required for core functionality.
 
 ```
 Developer machine:
-  pip install qa-platform
+  pip install cortex
   qa run --repo . --tiers 1,2 --report json,pdf
 
 CI/CD environment:
-  pip install qa-platform
+  pip install cortex
   qa run --repo . --pr $PR_NUMBER --post-comment --report json
   exit $?  # exit code reflects quality gate
 ```
@@ -983,9 +983,9 @@ CI/CD environment:
 For CI/CD environments that prefer containers:
 
 ```
-Docker image: qa-platform:latest
+Docker image: cortex:latest
   Base: python:3.11-slim
-  Includes: qa-platform + all pip-installable Tier 1 tools
+  Includes: cortex + all pip-installable Tier 1 tools
   External binaries: gitleaks, hadolint, shellcheck, trivy (optional layer)
   Entrypoint: qa run
 ```
@@ -1032,7 +1032,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y git shellcheck && rm -rf /var/lib/apt/lists/*
 
 # Platform and pip-installable tools
-RUN pip install qa-platform
+RUN pip install cortex
 
 # Optional: external binaries
 # COPY --from=gitleaks /usr/bin/gitleaks /usr/local/bin/
@@ -1045,7 +1045,7 @@ ENTRYPOINT ["qa"]
 Image layers:
 1. **Base**: Python 3.11 slim (~45MB)
 2. **System tools**: git, shellcheck (~30MB)
-3. **Platform + pip tools**: qa-platform, ruff, bandit, mypy, semgrep, radon, pip-audit, sqlfluff, checkov, pip-licenses (~200MB)
+3. **Platform + pip tools**: cortex, ruff, bandit, mypy, semgrep, radon, pip-audit, sqlfluff, checkov, pip-licenses (~200MB)
 4. **Optional binaries**: gitleaks, hadolint, trivy, osv-scanner (~100MB)
 
 Total: ~375MB (with optional binaries)
@@ -1067,20 +1067,20 @@ spec:
   template:
     spec:
       containers:
-      - name: qa-platform
-        image: qa-platform:latest
+      - name: cortex
+        image: cortex:latest
         command: ["qa", "run"]
         args: ["--repo", "$(REPO_URL)", "--pr", "$(PR_NUMBER)", "--post-comment"]
         env:
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:
-              name: qa-platform-secrets
+              name: cortex-secrets
               key: anthropic-api-key
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
-              name: qa-platform-secrets
+              name: cortex-secrets
               key: github-token
         resources:
           requests:
@@ -1107,8 +1107,8 @@ spec:
       template:
         spec:
           containers:
-          - name: qa-platform
-            image: qa-platform:latest
+          - name: cortex
+            image: cortex:latest
             command: ["qa", "run"]
             args: ["--repo", "$(REPO_URL)", "--audit", "--report", "json,pdf"]
 ```
@@ -1131,7 +1131,7 @@ jobs:
         fetch-depth: 0
 
     - name: Install QA Platform
-      run: pip install qa-platform
+      run: pip install cortex
 
     - name: Run QA Scan
       env:

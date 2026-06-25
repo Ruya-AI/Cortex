@@ -1,6 +1,6 @@
 # Document 10: Security Documentation
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

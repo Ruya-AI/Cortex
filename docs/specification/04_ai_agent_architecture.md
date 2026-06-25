@@ -1,6 +1,6 @@
 # Document 04: AI Agent Architecture Document
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

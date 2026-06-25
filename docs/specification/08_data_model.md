@@ -1,6 +1,6 @@
 # Document 08: Data Model Documentation
 
-**QA Platform v2**
+**Cortex QA Platform**
 **Date**: 2026-06-18
 
 ---

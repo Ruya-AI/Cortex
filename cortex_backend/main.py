@@ -38,12 +38,12 @@ async def lifespan(app: FastAPI):
         from cortex_backend.database import async_session
         from sqlalchemy import update
         from cortex_backend.models.qa_execution import QAExecution
-        from datetime import datetime
+        from datetime import datetime, timezone
         async with async_session() as db:
             result = await db.execute(
                 update(QAExecution)
                 .where(QAExecution.status.in_(["running", "pending"]))
-                .values(status="failed", error_message="Server restarted during scan", completed_at=datetime.utcnow())
+                .values(status="failed", error_message="Server restarted during scan", completed_at=datetime.now(timezone.utc))
             )
             if result.rowcount > 0:
                 await db.commit()
@@ -78,14 +78,14 @@ async def _stale_execution_reaper():
     from cortex_backend.models.qa_execution import QAExecution
     from cortex_backend.services.admin_settings import AdminSettings
     from sqlalchemy import select
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     while True:
         await asyncio.sleep(120)
         try:
             async with async_session() as db:
                 timeout_minutes = int(await AdminSettings.get(db, "qa.stale_execution_timeout_minutes", "60"))
-                cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+                cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
                 result = await db.execute(
                     select(QAExecution).where(
                         QAExecution.status.in_(["running", "pending"]),
@@ -97,7 +97,7 @@ async def _stale_execution_reaper():
                     for ex in stale:
                         ex.status = "failed"
                         ex.error_message = f"Execution timed out — exceeded {timeout_minutes} minute limit"
-                        ex.completed_at = datetime.utcnow()
+                        ex.completed_at = datetime.now(timezone.utc)
                     await db.commit()
                     logger.info("Stale reaper: marked %d executions as failed (timeout=%dm)", len(stale), timeout_minutes)
         except asyncio.CancelledError:
