@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import json
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -257,6 +258,76 @@ async def update_setting(key: str, data: SettingUpdate, db: AsyncSession = Depen
     await AdminSettings.set(db, key, data.value)
     await db.commit()
     return {"key": key, "value": data.value, "status": "updated"}
+
+
+# -- Named Configurations (multi-config per section) --
+
+VALID_SECTIONS = {"github", "llm", "linear", "notifications"}
+
+class NamedConfig(BaseModel):
+    name: str
+    config: dict
+
+@router.get("/configs/{section}")
+async def list_named_configs(section: str, db: AsyncSession = Depends(get_db)):
+    if section not in VALID_SECTIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid section: {section}")
+    result = await db.execute(
+        select(AppConfig).where(AppConfig.key.startswith(f"configs.{section}."))
+    )
+    configs = result.scalars().all()
+    items = []
+    for c in configs:
+        name = c.key.replace(f"configs.{section}.", "")
+        try:
+            data = json.loads(c.value)
+        except json.JSONDecodeError:
+            data = {}
+        for k in list(data.keys()):
+            if k.endswith(("token", "api_key", "api_key")):
+                v = data[k]
+                data[k] = ("****" + v[-4:]) if len(v) > 4 else ("****" if v else "")
+        items.append({"name": name, "config": data, "updated_at": c.updated_at.isoformat() if c.updated_at else None})
+    return {"section": section, "items": items}
+
+@router.post("/configs/{section}")
+async def create_named_config(section: str, data: NamedConfig, db: AsyncSession = Depends(get_db)):
+    if section not in VALID_SECTIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid section: {section}")
+    if not data.name or not data.name.strip():
+        raise HTTPException(status_code=400, detail="Config name is required")
+    key = f"configs.{section}.{data.name.strip()}"
+    existing = await db.execute(select(AppConfig).where(AppConfig.key == key))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Configuration '{data.name}' already exists in {section}")
+    await AdminSettings.set(db, key, json.dumps(data.config), category=f"configs.{section}", description=f"Named config: {data.name}")
+    await db.commit()
+    return {"status": "created", "name": data.name}
+
+@router.put("/configs/{section}/{name}")
+async def update_named_config(section: str, name: str, data: NamedConfig, db: AsyncSession = Depends(get_db)):
+    if section not in VALID_SECTIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid section: {section}")
+    key = f"configs.{section}.{name}"
+    existing = await db.execute(select(AppConfig).where(AppConfig.key == key))
+    if not existing.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail=f"Configuration '{name}' not found")
+    await AdminSettings.set(db, key, json.dumps(data.config), category=f"configs.{section}")
+    await db.commit()
+    return {"status": "updated", "name": name}
+
+@router.delete("/configs/{section}/{name}")
+async def delete_named_config(section: str, name: str, db: AsyncSession = Depends(get_db)):
+    if section not in VALID_SECTIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid section: {section}")
+    key = f"configs.{section}.{name}"
+    result = await db.execute(select(AppConfig).where(AppConfig.key == key))
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=404, detail=f"Configuration '{name}' not found")
+    await db.delete(config)
+    await db.commit()
+    return {"status": "deleted", "name": name}
 
 
 @router.get("/system-info")

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { fetchApi } from '../hooks/useApi';
 import { AppSettings } from '../types';
 
@@ -165,7 +165,7 @@ function SavedConfig({ items }: { items: Array<{ label: string; value: string }>
   if (!hasValues) return null;
   return (
     <div style={{ background: '#f0f7ff', border: '1px solid #b8daff', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
-      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f3460', marginBottom: '8px' }}>Current Configuration</div>
+      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f3460', marginBottom: '8px' }}>Active Configuration</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px', fontSize: '13px' }}>
         {items.map(i => (
           <div key={i.label}>
@@ -174,6 +174,125 @@ function SavedConfig({ items }: { items: Array<{ label: string; value: string }>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+interface NamedConfigItem { name: string; config: Record<string, unknown>; updated_at: string | null }
+
+function ConfigManager({ section, fields }: {
+  section: string;
+  fields: Array<{ key: string; label: string; type?: string; options?: Array<{ value: string; label: string }> }>;
+}) {
+  const [configs, setConfigs] = useState<NamedConfigItem[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState('');
+
+  const load = useCallback(() => {
+    fetchApi<{ items: NamedConfigItem[] }>(`/api/admin/configs/${section}`)
+      .then(d => setConfigs(d.items)).catch(() => {});
+  }, [section]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const resetForm = () => {
+    setFormName('');
+    setFormData({});
+    setEditing(null);
+    setMsg('');
+  };
+
+  const editConfig = (item: NamedConfigItem) => {
+    setEditing(item.name);
+    setFormName(item.name);
+    const data: Record<string, string> = {};
+    for (const f of fields) data[f.key] = String(item.config[f.key] ?? '');
+    setFormData(data);
+    setMsg('');
+  };
+
+  const saveConfig = () => {
+    if (!formName.trim()) { setMsg('Name is required.'); return; }
+    setMsg('');
+    const payload = { name: formName.trim(), config: { ...formData } };
+    const method = editing ? 'PUT' : 'POST';
+    const url = editing ? `/api/admin/configs/${section}/${editing}` : `/api/admin/configs/${section}`;
+    fetchApi(url, { method, body: JSON.stringify(payload) })
+      .then(() => { setMsg(editing ? 'Updated.' : 'Created.'); resetForm(); load(); })
+      .catch((e: Error) => setMsg(e.message.includes('409') ? 'Name already exists.' : 'Failed to save.'));
+  };
+
+  const deleteConfig = (name: string) => {
+    fetchApi(`/api/admin/configs/${section}/${name}`, { method: 'DELETE' })
+      .then(() => { load(); setMsg(`'${name}' deleted.`); })
+      .catch(() => setMsg('Failed to delete.'));
+  };
+
+  const setField = (key: string, val: string) => setFormData(prev => ({ ...prev, [key]: val }));
+
+  return (
+    <div style={{ marginTop: '16px', borderTop: '1px solid #e9ecef', paddingTop: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#333' }}>Saved Configurations ({configs.length})</div>
+        {!editing && <button onClick={() => { resetForm(); setEditing('__new__'); }} style={{ padding: '4px 14px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>Add New</button>}
+      </div>
+
+      {configs.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          {configs.map(c => (
+            <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid #f0f0f0', background: editing === c.name ? '#f0f7ff' : 'transparent' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f3460' }}>{c.name}</div>
+                <div style={{ fontSize: '12px', color: '#666', display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '2px' }}>
+                  {fields.slice(0, 4).map(f => {
+                    const v = String(c.config[f.key] ?? '');
+                    return v ? <span key={f.key}>{f.label}: <strong>{v.length > 30 ? v.slice(0, 30) + '...' : v}</strong></span> : null;
+                  })}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => editConfig(c)} style={{ padding: '4px 12px', background: '#0f3460', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Edit</button>
+                <button onClick={() => deleteConfig(c.name)} style={{ padding: '4px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(editing === '__new__' || (editing && editing !== '__new__')) && (
+        <div style={{ background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '6px', padding: '16px', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '12px' }}>{editing === '__new__' ? 'Add Configuration' : `Edit: ${editing}`}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Configuration Name</label>
+              <input style={inputStyle} value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g. production, staging" disabled={editing !== '__new__'} />
+            </div>
+            {fields.map(f => (
+              <div key={f.key} style={fieldGroupStyle}>
+                <label style={labelStyle}>{f.label}</label>
+                {f.options ? (
+                  <select style={selectStyle} value={formData[f.key] || ''} onChange={e => setField(f.key, e.target.value)}>
+                    {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                ) : (
+                  <input style={inputStyle} type={f.type || 'text'} value={formData[f.key] || ''} onChange={e => setField(f.key, e.target.value)} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+            <button onClick={saveConfig} style={buttonStyle}>{editing === '__new__' ? 'Create' : 'Update'}</button>
+            <button onClick={resetForm} style={{ ...buttonStyle, background: '#6c757d' }}>Cancel</button>
+          </div>
+          {msg && <p style={msgStyle(msg)}>{msg}</p>}
+        </div>
+      )}
+
+      {configs.length === 0 && !editing && (
+        <div style={{ padding: '12px', textAlign: 'center', color: '#999', fontSize: '13px' }}>No saved configurations. Click "Add New" to create one.</div>
+      )}
     </div>
   );
 }
@@ -462,6 +581,11 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveGithub}>Save GitHub Settings</button>
         {ghMsg && <p style={msgStyle(ghMsg)}>{ghMsg}</p>}
+        <ConfigManager section="github" fields={[
+          { key: 'token', label: 'Token', type: 'password' },
+          { key: 'api_url', label: 'API URL' },
+          { key: 'org_name', label: 'Organization' },
+        ]} />
       </CollapsibleSection>
 
       {/* ===== Section 2: QA Execution Settings ===== */}
@@ -566,6 +690,16 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveLLM}>Save LLM Settings</button>
         {llmMsg && <p style={msgStyle(llmMsg)}>{llmMsg}</p>}
+        <ConfigManager section="llm" fields={[
+          { key: 'provider', label: 'Provider', options: [{ value: 'vertex_ai', label: 'Vertex AI' }, { value: 'anthropic', label: 'Anthropic' }] },
+          { key: 'api_key', label: 'API Key', type: 'password' },
+          { key: 'primary_model', label: 'Primary Model' },
+          { key: 'fallback_model', label: 'Fallback Model' },
+          { key: 'vertex_project_id', label: 'Vertex Project ID' },
+          { key: 'vertex_region', label: 'Vertex Region' },
+          { key: 'max_retries', label: 'Max Retries' },
+          { key: 'cost_limit', label: 'Cost Limit' },
+        ]} />
       </CollapsibleSection>
 
       {/* ===== Section 3: Linear Settings ===== */}
@@ -643,6 +777,13 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveLinear}>Save Linear Settings</button>
         {linearMsg && <p style={msgStyle(linearMsg)}>{linearMsg}</p>}
+        <ConfigManager section="linear" fields={[
+          { key: 'api_key', label: 'API Key', type: 'password' },
+          { key: 'team_id', label: 'Team ID' },
+          { key: 'workspace_name', label: 'Workspace' },
+          { key: 'min_severity', label: 'Min Severity', options: [{ value: 'critical', label: 'Critical' }, { value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }] },
+          { key: 'max_tasks_per_scan', label: 'Max Tasks/Scan' },
+        ]} />
       </CollapsibleSection>
 
       {/* ===== Section 4: Notification Settings ===== */}
@@ -698,6 +839,10 @@ export function Admin() {
         </div>
         <button style={buttonStyle} onClick={saveNotifications}>Save Notification Settings</button>
         {notifMsg && <p style={msgStyle(notifMsg)}>{notifMsg}</p>}
+        <ConfigManager section="notifications" fields={[
+          { key: 'slack_webhook_url', label: 'Slack Webhook URL' },
+          { key: 'email', label: 'Email' },
+        ]} />
       </CollapsibleSection>
 
       {/* ===== Section 5: Repository Management ===== */}
