@@ -16,6 +16,13 @@ from cortex_backend.services.admin_settings import AdminSettings
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def _yaml_fallback(section: str, key: str, default: str = "") -> str:
+    """Get a value from cortex-admin-config-local.yaml as fallback."""
+    from cortex_backend.main import load_yaml_fallback
+    data = load_yaml_fallback()
+    return str(data.get(section, {}).get(key, default))
+
+
 # -- GitHub Settings --
 
 class GitHubSettings(BaseModel):
@@ -25,14 +32,16 @@ class GitHubSettings(BaseModel):
 
 @router.get("/github")
 async def get_github_settings(db: AsyncSession = Depends(get_db)):
-    token = await AdminSettings.get(db, "github.token")
-    api_url = await AdminSettings.get(db, "github.api_url", "https://api.github.com")
-    org_name = await AdminSettings.get(db, "github.org_name")
+    token = await AdminSettings.get(db, "github.token") or _yaml_fallback("github", "token")
+    api_url = await AdminSettings.get(db, "github.api_url") or _yaml_fallback("github", "api_url", "https://api.github.com")
+    org_name = await AdminSettings.get(db, "github.org_name") or _yaml_fallback("github", "org_name")
+    from_yaml = not await AdminSettings.get(db, "github.token")
     return {
         "token": "****" + token[-4:] if len(token) > 4 else ("" if not token else "****"),
         "api_url": api_url,
         "org_name": org_name,
         "is_configured": bool(token),
+        "from_yaml": from_yaml,
     }
 
 @router.put("/github")
@@ -90,15 +99,18 @@ class LinearSettings(BaseModel):
 @router.get("/linear")
 async def get_linear_settings(db: AsyncSession = Depends(get_db)):
     config = await AdminSettings.get_group(db, "linear.")
-    api_key = config.get("linear.api_key", "")
+    yf = lambda k, d="": config.get(f"linear.{k}") or _yaml_fallback("linear", k, d)
+    api_key = yf("api_key")
+    from_yaml = not config.get("linear.api_key", "")
     return {
         "api_key": "****" + api_key[-4:] if len(api_key) > 4 else ("" if not api_key else "****"),
-        "team_id": config.get("linear.team_id", ""),
-        "workspace_name": config.get("linear.workspace_name", ""),
-        "auto_create_tasks": config.get("linear.auto_create_tasks", "false") == "true",
-        "min_severity": config.get("linear.min_severity", "medium"),
-        "max_tasks_per_scan": int(config.get("linear.max_tasks_per_scan", "20")),
+        "team_id": yf("team_id"),
+        "workspace_name": yf("workspace_name"),
+        "auto_create_tasks": yf("auto_create_tasks", "false") == "true",
+        "min_severity": yf("min_severity", "medium"),
+        "max_tasks_per_scan": int(yf("max_tasks_per_scan", "20")),
         "is_configured": bool(api_key),
+        "from_yaml": from_yaml,
     }
 
 @router.put("/linear")
@@ -125,14 +137,17 @@ class NotificationSettings(BaseModel):
 @router.get("/notifications")
 async def get_notification_settings(db: AsyncSession = Depends(get_db)):
     config = await AdminSettings.get_group(db, "notifications.")
-    slack = config.get("notifications.slack_webhook_url", "")
-    email = config.get("notifications.email", "")
+    yf = lambda k, d="": config.get(f"notifications.{k}") or _yaml_fallback("notifications", k, d)
+    slack = yf("slack_webhook_url")
+    email = yf("email")
+    from_yaml = not config.get("notifications.slack_webhook_url", "") and not config.get("notifications.email", "")
     return {
         "slack_webhook_url": slack,
         "email": email,
-        "on_critical": config.get("notifications.on_critical", "true") == "true",
-        "on_gate_fail": config.get("notifications.on_gate_fail", "true") == "true",
+        "on_critical": yf("on_critical", "true") == "true",
+        "on_gate_fail": yf("on_gate_fail", "true") == "true",
         "is_configured": bool(slack or email),
+        "from_yaml": from_yaml,
     }
 
 @router.put("/notifications")
@@ -162,19 +177,23 @@ class LLMSettings(BaseModel):
 @router.get("/llm")
 async def get_llm_settings(db: AsyncSession = Depends(get_db)):
     config = await AdminSettings.get_group(db, "llm.")
-    api_key = config.get("llm.api_key", "")
+    yf = lambda k, d="": config.get(f"llm.{k}") or _yaml_fallback("llm", k, d)
+    api_key = yf("api_key")
+    project_id = yf("vertex_project_id")
+    from_yaml = not config.get("llm.provider", "")
     return {
-        "provider": config.get("llm.provider", "vertex_ai"),
+        "provider": yf("provider", "vertex_ai"),
         "api_key": "****" + api_key[-4:] if len(api_key) > 4 else ("" if not api_key else "****"),
-        "primary_model": config.get("llm.primary_model", "claude-opus-4-6"),
-        "fallback_model": config.get("llm.fallback_model", "claude-sonnet-4-6"),
-        "vertex_project_id": config.get("llm.vertex_project_id", ""),
-        "vertex_region": config.get("llm.vertex_region", "global"),
-        "max_tokens": int(config.get("llm.max_tokens", "8192")),
-        "temperature": float(config.get("llm.temperature", "0.0")),
-        "max_retries": int(config.get("llm.max_retries", "3")),
-        "cost_limit": float(config.get("llm.cost_limit", "0.0")),
-        "is_configured": bool(api_key or config.get("llm.vertex_project_id", "")),
+        "primary_model": yf("primary_model", "claude-opus-4-6"),
+        "fallback_model": yf("fallback_model", "claude-sonnet-4-6"),
+        "vertex_project_id": project_id,
+        "vertex_region": yf("vertex_region", "global"),
+        "max_tokens": int(yf("max_tokens", "8192")),
+        "temperature": float(yf("temperature", "0.0")),
+        "max_retries": int(yf("max_retries", "3")),
+        "cost_limit": float(yf("cost_limit", "0.0")),
+        "is_configured": bool(api_key or project_id),
+        "from_yaml": from_yaml,
     }
 
 @router.put("/llm")
@@ -207,7 +226,7 @@ class QASettings(BaseModel):
 
 @router.get("/qa")
 async def get_qa_settings(db: AsyncSession = Depends(get_db)):
-    timeout = await AdminSettings.get(db, "qa.stale_execution_timeout_minutes", "60")
+    timeout = await AdminSettings.get(db, "qa.stale_execution_timeout_minutes") or _yaml_fallback("qa", "stale_execution_timeout_minutes", "60")
     return {
         "stale_execution_timeout_minutes": int(timeout),
     }

@@ -76,17 +76,10 @@ async def lifespan(app: FastAPI):
 
 
 async def _load_default_configs(async_session_factory):
-    """Load default admin configs from cortex-admin-config-local.yaml if DB is empty."""
-    from sqlalchemy import select, func
+    """Load default admin configs from cortex-admin-config-local.yaml for sections with no DB entries."""
     from cortex_backend.models.app_config import AppConfig
     from cortex_backend.services.admin_settings import AdminSettings
-
-    async with async_session_factory() as db:
-        count_result = await db.execute(select(func.count(AppConfig.id)))
-        existing_count = count_result.scalar() or 0
-        if existing_count > 0:
-            logger.info("Admin configs already exist (%d entries), skipping default load", existing_count)
-            return
+    from sqlalchemy import select
 
     config_path = Path(__file__).parent.parent / "cortex-admin-config-local.yaml"
     if not config_path.exists():
@@ -104,14 +97,33 @@ async def _load_default_configs(async_session_factory):
             for section, values in data.items():
                 if not isinstance(values, dict):
                     continue
+                existing = await db.execute(
+                    select(AppConfig).where(AppConfig.category == section).limit(1)
+                )
+                if existing.scalar_one_or_none():
+                    continue
                 for key, value in values.items():
                     full_key = f"{section}.{key}"
                     await AdminSettings.set(db, full_key, str(value), category=section)
                     count += 1
-            await db.commit()
-            logger.info("Loaded %d default configs from %s", count, config_path.name)
+            if count > 0:
+                await db.commit()
+                logger.info("Loaded %d default configs from %s (sections with no DB entries)", count, config_path.name)
     except Exception as e:
         logger.warning("Failed to load default configs: %s", e)
+
+
+def load_yaml_fallback() -> dict:
+    """Read cortex-admin-config-local.yaml and return as dict. Used by admin API as fallback."""
+    config_path = Path(__file__).parent.parent / "cortex-admin-config-local.yaml"
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml
+        data = yaml.safe_load(config_path.read_text())
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 async def _stale_execution_reaper():

@@ -21,7 +21,11 @@ env/
 # Cortex output
 .qa-reports/
 .cortex.db
+.cortex.db-shm
+.cortex.db-wal
 *.db
+*.db-shm
+*.db-wal
 
 # Local admin config (contains credentials)
 cortex-admin-config-local.yaml
@@ -39,6 +43,8 @@ htmlcov/
 
 # Frontend
 node_modules/
+cortex_frontend/dist/
+cortex_frontend/node_modules/
 frontend/dist/
 frontend/node_modules/
 *.tsbuildinfo
@@ -46,3 +52,14 @@ frontend/node_modules/
 # Environment
 .env
 .env.local
+.env.*
+
+# Deployment secrets
+deploy/config/*/.env
+
+# Logs
+*.log
+/tmp/cortex-*.log
+
+# Package lock (optional — remove if you want to track it)
+# cortex_frontend/package-lock.json
