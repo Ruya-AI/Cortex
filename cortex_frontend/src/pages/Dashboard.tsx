@@ -33,7 +33,7 @@ interface PatternData {
   top_sources: Array<{ source: string; count: number }>;
 }
 
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '8000')}/ws/dashboard`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/dashboard`;
 
 const severityColors: Record<string, string> = {
   critical: '#dc3545', high: '#fd7e14', medium: '#ffc107', low: '#28a745', info: '#0d6efd',
