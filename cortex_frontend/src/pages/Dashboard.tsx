@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { MetricsCard } from '../components/MetricsCard';
 import { ErrorBanner } from '../components/ErrorBanner';
@@ -35,6 +35,54 @@ interface PatternData {
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/dashboard`;
 
+// Persistent state — survives component unmount/remount during page navigation
+let _persistentActive: Map<string, ActiveExecution> = new Map();
+let _persistentWs: WebSocket | null = null;
+let _persistentWsConnected = false;
+let _onUpdate: (() => void) | null = null;
+
+function _ensureWebSocket(loadData: () => void) {
+  if (_persistentWs && _persistentWs.readyState === WebSocket.OPEN) return;
+  if (_persistentWs && _persistentWs.readyState === WebSocket.CONNECTING) return;
+
+  const ws = new WebSocket(WS_URL);
+  _persistentWs = ws;
+
+  ws.onopen = () => { _persistentWsConnected = true; _onUpdate?.(); };
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type !== 'status' && msg.type !== 'progress') return;
+      const id = msg.execution_id;
+      if (!id) return;
+
+      if (msg.type === 'status' && msg.status === 'running') {
+        _persistentActive.set(id, { executionId: id, repo: _repoName(msg.repository_url || ''), status: 'running', messages: [], startedAt: Date.now() });
+      } else if (msg.type === 'progress') {
+        const cur = _persistentActive.get(id) || { executionId: id, repo: _repoName(msg.repository_url || ''), status: 'running', messages: [], startedAt: Date.now() };
+        _persistentActive.set(id, { ...cur, messages: [...cur.messages, msg.message] });
+      } else if (msg.type === 'status' && (msg.status === 'completed' || msg.status === 'failed')) {
+        const existing = _persistentActive.get(id);
+        if (existing) _persistentActive.set(id, { ...existing, status: msg.status, findingCount: msg.finding_count, qualityGate: msg.quality_gate_status, duration: msg.duration_seconds });
+        setTimeout(() => { _persistentActive.delete(id); _onUpdate?.(); loadData(); }, 8000);
+      }
+      _onUpdate?.();
+    } catch { /* ignore */ }
+  };
+  ws.onclose = () => {
+    _persistentWsConnected = false;
+    _persistentWs = null;
+    _onUpdate?.();
+    setTimeout(() => _ensureWebSocket(loadData), 3000);
+  };
+  ws.onerror = () => ws.close();
+}
+
+function _repoName(url: string): string {
+  if (!url) return 'Unknown';
+  return url.replace(/\.git$/, '').split('/').slice(-2).join('/');
+}
+
 const severityColors: Record<string, string> = {
   critical: '#dc3545', high: '#fd7e14', medium: '#ffc107', low: '#28a745', info: '#0d6efd',
 };
@@ -49,12 +97,9 @@ export function Dashboard() {
   const [patterns, setPatterns] = useState<PatternData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [active, setActive] = useState<Map<string, ActiveExecution>>(new Map());
-  const [wsConnected, setWsConnected] = useState(false);
+  const [active, setActive] = useState<Map<string, ActiveExecution>>(_persistentActive);
+  const [wsConnected, setWsConnected] = useState(_persistentWsConnected);
   const [now, setNow] = useState(Date.now());
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(() => {
     setError('');
@@ -68,74 +113,36 @@ export function Dashboard() {
       setAnalytics(analyticsData);
       setPatterns(patternsData);
       const running = execData.items.filter(e => e.status === 'running');
-      if (running.length > 0) {
-        setActive(prev => {
-          const next = new Map(prev);
-          for (const e of running) {
-            if (!next.has(e.id)) {
-              next.set(e.id, {
-                executionId: e.id, repo: repoName(e.repository_url),
-                status: 'running', messages: ['Scan in progress...'],
-                startedAt: e.started_at ? new Date(e.started_at).getTime() : Date.now(),
-              });
-            }
-          }
-          return next;
-        });
+      for (const e of running) {
+        if (!_persistentActive.has(e.id)) {
+          _persistentActive.set(e.id, {
+            executionId: e.id, repo: _repoName(e.repository_url),
+            status: 'running', messages: ['Scan in progress...'],
+            startedAt: e.started_at ? new Date(e.started_at).getTime() : Date.now(),
+          });
+        }
       }
+      setActive(new Map(_persistentActive));
     }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
+    _onUpdate = () => {
+      setActive(new Map(_persistentActive));
+      setWsConnected(_persistentWsConnected);
+    };
+    _ensureWebSocket(loadData);
+    return () => { _onUpdate = null; };
+  }, [loadData]);
+
+  useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    let attempt = 0;
-    function connect() {
-      if (wsRef.current?.readyState === WebSocket.OPEN) return;
-      const ws = new WebSocket(WS_URL);
-      wsRef.current = ws;
-      ws.onopen = () => {
-        setWsConnected(true); attempt = 0;
-        pingRef.current = setInterval(() => { if (ws.readyState === WebSocket.OPEN) ws.send('ping'); }, 30000);
-      };
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'status' || msg.type === 'progress') {
-            const id = msg.execution_id;
-            if (!id) return;
-            setActive(prev => {
-              const next = new Map(prev);
-              const existing = next.get(id);
-              if (msg.type === 'status' && msg.status === 'running') {
-                next.set(id, { executionId: id, repo: repoName(msg.repository_url || ''), status: 'running', messages: [], startedAt: Date.now() });
-              } else if (msg.type === 'progress') {
-                const cur = existing || { executionId: id, repo: repoName(msg.repository_url || ''), status: 'running', messages: [], startedAt: Date.now() };
-                next.set(id, { ...cur, messages: [...cur.messages, msg.message] });
-              } else if (msg.type === 'status' && (msg.status === 'completed' || msg.status === 'failed')) {
-                if (existing) next.set(id, { ...existing, status: msg.status, findingCount: msg.finding_count, qualityGate: msg.quality_gate_status, duration: msg.duration_seconds });
-                setTimeout(() => { setActive(p => { const m = new Map(p); m.delete(id); return m; }); loadData(); }, 8000);
-              }
-              return next;
-            });
-          }
-        } catch { /* ignore */ }
-      };
-      ws.onclose = () => {
-        setWsConnected(false);
-        if (pingRef.current) clearInterval(pingRef.current);
-        reconnectRef.current = setTimeout(connect, Math.min(1000 * 2 ** attempt++, 15000));
-      };
-      ws.onerror = () => ws.close();
-    }
-    connect();
-    return () => { wsRef.current?.close(); if (reconnectRef.current) clearTimeout(reconnectRef.current); if (pingRef.current) clearInterval(pingRef.current); };
-  }, [loadData]);
+  // WebSocket is managed by _ensureWebSocket (persistent, survives page navigation)
 
   if (loading) return <div><h2>Dashboard</h2><p style={{ color: '#999' }}>Loading...</p></div>;
   if (error) return <div><h2>Dashboard</h2><ErrorBanner message={error} onRetry={loadData} /></div>;
@@ -269,7 +276,7 @@ export function Dashboard() {
                 <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>
                   <Link to={`/qa-execution/${e.id}`} style={{ color: '#0f3460', textDecoration: 'none', fontWeight: 600 }}>{e.scan_id || e.id.slice(0, 8)}</Link>
                 </td>
-                <td style={{ padding: '10px' }}>{repoName(e.repository_url)}</td>
+                <td style={{ padding: '10px' }}>{_repoName(e.repository_url)}</td>
                 <td style={{ padding: '10px' }}>
                   <span style={{ fontSize: '11px', background: '#f0f0f0', padding: '2px 6px', borderRadius: '3px', textTransform: 'capitalize' }}>
                     {(e.execution_type || 'repository').replace('_', ' ')}
@@ -294,11 +301,6 @@ export function Dashboard() {
       </div>
     </div>
   );
-}
-
-function repoName(url: string): string {
-  if (!url) return 'Unknown';
-  return url.replace(/\.git$/, '').split('/').slice(-2).join('/');
 }
 
 function formatElapsed(ms: number): string {
