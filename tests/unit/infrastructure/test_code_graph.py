@@ -27,12 +27,16 @@ class TestCodeGraphAvailability:
     def test_build_simple_python(self, tmp_path):
         (tmp_path / "main.py").write_text("def hello():\n    return 'world'\n")
         (tmp_path / "utils.py").write_text("def add(a, b):\n    return a + b\n")
-        result = CodeGraph.build(tmp_path, ["main.py", "utils.py"])
+        result = CodeGraph.build(tmp_path, ["main.py", "utils.py"], repo_url="test://repo")
         assert result is not None
         assert result.number_of_nodes() > 0
 
-    def test_load_nonexistent_returns_none(self, tmp_path):
-        result = CodeGraph.load(tmp_path)
+    def test_load_nonexistent_returns_none(self):
+        result = CodeGraph.load(repo_url="test://nonexistent-repo-xyz")
+        assert result is None
+
+    def test_load_empty_url_returns_none(self):
+        result = CodeGraph.load(repo_url="")
         assert result is None
 
     def test_get_summary_none_graph(self):
@@ -44,12 +48,26 @@ class TestCodeGraphAvailability:
     def test_get_affected_none_graph(self):
         assert CodeGraph.get_affected(None, ["file.py"]) == {}
 
-    def test_build_and_cache(self, tmp_path):
+    def test_build_and_persistent_cache(self, tmp_path):
         (tmp_path / "app.py").write_text("def run():\n    pass\n")
-        graph = CodeGraph.build(tmp_path, ["app.py"])
+        repo_url = "test://cache-test-repo"
+        graph = CodeGraph.build(tmp_path, ["app.py"], repo_url=repo_url)
         assert graph is not None
-        cache = tmp_path / ".cortex" / "graph.json"
-        assert cache.exists()
+        cache_path = CodeGraph._cache_path(repo_url)
+        assert cache_path.exists()
+        # Clean up
+        cache_path.unlink(missing_ok=True)
+
+    def test_build_and_load_roundtrip(self, tmp_path):
+        (tmp_path / "main.py").write_text("def run():\n    pass\n")
+        repo_url = "test://roundtrip-repo"
+        graph = CodeGraph.build(tmp_path, ["main.py"], repo_url=repo_url)
+        assert graph is not None
+        loaded = CodeGraph.load(repo_url=repo_url)
+        assert loaded is not None
+        assert loaded.number_of_nodes() == graph.number_of_nodes()
+        # Clean up
+        CodeGraph._cache_path(repo_url).unlink(missing_ok=True)
 
     def test_get_summary_with_graph(self, tmp_path):
         (tmp_path / "main.py").write_text("from utils import helper\ndef run():\n    helper()\n")

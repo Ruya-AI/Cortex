@@ -7,6 +7,7 @@ Fully optional — returns None on any failure. Cortex continues without it.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -24,6 +25,8 @@ try:
 except ImportError:
     nx = None
 
+_GRAPH_CACHE_DIR = Path.home() / ".cortex" / "graph_cache"
+
 
 class CodeGraph:
     """Thin wrapper around Graphify with caching and fault tolerance."""
@@ -33,7 +36,13 @@ class CodeGraph:
         return _GRAPHIFY_AVAILABLE
 
     @staticmethod
-    def build(repo_path: Path, file_paths: list[str]) -> object | None:
+    def _cache_path(repo_url: str) -> Path:
+        """Persistent cache path keyed by repo URL hash."""
+        repo_hash = hashlib.sha256(repo_url.encode()).hexdigest()[:12]
+        return _GRAPH_CACHE_DIR / f"{repo_hash}.json"
+
+    @staticmethod
+    def build(repo_path: Path, file_paths: list[str], repo_url: str = "") -> object | None:
         """Build code graph from source files using Tree-sitter (Pass 1 only).
 
         Returns a NetworkX graph or None on failure.
@@ -51,14 +60,14 @@ class CodeGraph:
             if not existing:
                 return None
 
-            extractions = _extract(existing, cache_root=repo_path / ".cortex" / "graph_cache")
+            extractions = _extract(existing, cache_root=repo_path / ".cortex" / "graph_extract")
             graph = _build([extractions], directed=True)
 
             if graph.number_of_nodes() == 0:
                 return None
 
-            cache_path = repo_path / ".cortex" / "graph.json"
-            CodeGraph.save(graph, cache_path)
+            if repo_url:
+                CodeGraph.save(graph, CodeGraph._cache_path(repo_url))
 
             return graph
         except Exception as e:
@@ -66,12 +75,12 @@ class CodeGraph:
             return None
 
     @staticmethod
-    def load(repo_path: Path) -> object | None:
-        """Load cached graph from .cortex/graph.json."""
-        if not _GRAPHIFY_AVAILABLE:
+    def load(repo_url: str) -> object | None:
+        """Load cached graph by repo URL."""
+        if not _GRAPHIFY_AVAILABLE or not repo_url:
             return None
 
-        cache_path = repo_path / ".cortex" / "graph.json"
+        cache_path = CodeGraph._cache_path(repo_url)
         if not cache_path.exists():
             return None
 
@@ -102,16 +111,15 @@ class CodeGraph:
 
         result: dict[str, list[dict]] = {}
         try:
-            file_nodes = {}
+            file_nodes: dict[str, list[str]] = {}
             for node_id, data in graph.nodes(data=True):
-                label = data.get("label", node_id)
                 for fp in changed_files:
                     stem = Path(fp).stem
                     if node_id.startswith(stem.replace("-", "_").replace(".", "_")):
                         file_nodes.setdefault(fp, []).append(node_id)
 
             for fp, nodes in file_nodes.items():
-                affected = []
+                affected: list[dict] = []
                 for seed in nodes:
                     try:
                         hits = _affected_nodes(graph, seed, depth=2)

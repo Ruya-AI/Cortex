@@ -124,11 +124,12 @@ class ScanOrchestrator:
                 try:
                     from cortex_engine.infrastructure.code_graph import CodeGraph
                     if CodeGraph.is_available():
+                        repo_url = repo_context.remote_url if repo_context else request.repo
                         if request.full_scan:
                             _progress("Building code graph...")
-                            code_graph = CodeGraph.build(repo_path, file_set.reviewable_files)
+                            code_graph = CodeGraph.build(repo_path, file_set.reviewable_files, repo_url=repo_url)
                         else:
-                            code_graph = CodeGraph.load(repo_path)
+                            code_graph = CodeGraph.load(repo_url=repo_url)
                         if code_graph:
                             summary = CodeGraph.get_summary(code_graph)
                             _progress(f"  Graph: {summary.get('nodes', 0)} nodes, {summary.get('edges', 0)} edges")
