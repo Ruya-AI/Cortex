@@ -517,6 +517,13 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
             <button key={f.key} style={filterPill(statusFilter === f.key)} onClick={() => setStatusFilter(f.key)}>{f.label}</button>
           ))}
           <button onClick={load} style={{ padding: '4px 14px', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginLeft: '8px' }}>Refresh</button>
+          {executions.length > 0 && (
+            <button onClick={() => {
+              if (!confirm('Delete all finished executions?')) return;
+              fetchApi(`/api/qa/executions${statusFilter ? `?status=${statusFilter}` : ''}`, { method: 'DELETE' })
+                .then(() => load()).catch(() => {});
+            }} style={{ padding: '4px 14px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>Clean All</button>
+          )}
         </div>
       </div>
       {loadError && <div style={{ background: '#fff3f3', border: '1px solid #f5c2c7', borderRadius: '6px', padding: '10px 14px', marginBottom: '12px', fontSize: '13px', color: '#dc3545' }}>{loadError} <button onClick={load} style={{ marginLeft: '8px', padding: '2px 10px', border: '1px solid #dc3545', borderRadius: '4px', background: '#fff', color: '#dc3545', cursor: 'pointer', fontSize: '12px' }}>Retry</button></div>}
@@ -533,6 +540,7 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
                 <th style={{ padding: '10px' }}>Gate</th>
                 <th style={{ padding: '10px' }}>Duration</th>
                 <th style={{ padding: '10px' }}>Date</th>
+                <th style={{ padding: '10px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -550,9 +558,15 @@ function ExecutionHistory({ executionType }: { executionType: string }) {
                   </td>
                   <td style={{ padding: '10px' }}>{(e.duration_seconds ?? 0) > 0 ? `${e.duration_seconds.toFixed(0)}s` : '—'}</td>
                   <td style={{ padding: '10px', fontSize: '12px', color: '#666' }}>{e.created_at ? new Date(e.created_at).toLocaleDateString() : '—'}</td>
+                  <td style={{ padding: '10px' }}>
+                    {e.status !== 'running' && e.status !== 'pending' && (
+                      <button onClick={() => { fetchApi(`/api/qa/executions/${e.id}`, { method: 'DELETE' }).then(() => load()).catch(() => {}); }}
+                        style={{ padding: '3px 10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Delete</button>
+                    )}
+                  </td>
                 </tr>
               ))}
-              {executions.length === 0 && <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No executions found.</td></tr>}
+              {executions.length === 0 && <tr><td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No executions found.</td></tr>}
             </tbody>
           </table>
         </div>

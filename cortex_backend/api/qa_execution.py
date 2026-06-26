@@ -81,6 +81,48 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Execution not found")
     return _exec_to_dict(execution)
 
+@router.delete("/executions/{execution_id}")
+async def delete_execution(execution_id: str, db: AsyncSession = Depends(get_db)):
+    from cortex_backend.models.qa_finding import QAFinding
+    result = await db.execute(select(QAExecution).where(QAExecution.id == execution_id))
+    execution = result.scalar_one_or_none()
+    if not execution:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Execution not found")
+    if execution.status == "running":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Cannot delete a running execution")
+    await db.execute(select(QAFinding).where(QAFinding.execution_id == execution_id))
+    findings = (await db.execute(select(QAFinding).where(QAFinding.execution_id == execution_id))).scalars().all()
+    for f in findings:
+        await db.delete(f)
+    await db.delete(execution)
+    await db.commit()
+    return {"status": "deleted", "id": execution_id}
+
+@router.delete("/executions")
+async def clean_executions(
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete finished executions. Use ?status=failed or ?status=completed to target specific states."""
+    from cortex_backend.models.qa_finding import QAFinding
+    query = select(QAExecution).where(QAExecution.status.in_(["completed", "failed", "cancelled"]))
+    if status and status in ("completed", "failed", "cancelled"):
+        query = select(QAExecution).where(QAExecution.status == status)
+    result = await db.execute(query)
+    executions = result.scalars().all()
+    count = 0
+    for e in executions:
+        findings = (await db.execute(select(QAFinding).where(QAFinding.execution_id == e.id))).scalars().all()
+        for f in findings:
+            await db.delete(f)
+        await db.delete(e)
+        count += 1
+    await db.commit()
+    return {"status": "cleaned", "deleted": count}
+
+
 async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers, cost_limit):
     """Run QA scan in background and update the execution record."""
     from cortex_backend.database import async_session
