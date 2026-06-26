@@ -160,12 +160,31 @@ function CollapsibleSection({ title, badge, defaultOpen = false, children }: {
   );
 }
 
+function SavedConfig({ items }: { items: Array<{ label: string; value: string }> }) {
+  const hasValues = items.some(i => i.value && i.value !== '—');
+  if (!hasValues) return null;
+  return (
+    <div style={{ background: '#f0f7ff', border: '1px solid #b8daff', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f3460', marginBottom: '8px' }}>Current Configuration</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px', fontSize: '13px' }}>
+        {items.map(i => (
+          <div key={i.label}>
+            <span style={{ color: '#666' }}>{i.label}: </span>
+            <strong style={{ color: '#333' }}>{i.value || '—'}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Admin() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   // --- GitHub Settings ---
   const [ghToken, setGhToken] = useState('');
+  const [ghMaskedToken, setGhMaskedToken] = useState('');
   const [ghApiUrl, setGhApiUrl] = useState('https://api.github.com');
   const [ghOrgName, setGhOrgName] = useState('');
   const [orgRepos, setOrgRepos] = useState<OrgRepo[]>([]);
@@ -230,6 +249,7 @@ export function Admin() {
     fetchApi<GitHubSettings & { org_name?: string; is_configured?: boolean }>('/api/admin/github')
       .then(data => {
         if (data) {
+          setGhMaskedToken((data.token as string) || '');
           setGhApiUrl(data.api_url || 'https://api.github.com');
           setGhOrgName(data.org_name || '');
           setGhConfigured((data.is_configured as boolean) ?? false);
@@ -420,6 +440,11 @@ export function Admin() {
 
       {/* ===== Section 1: GitHub Settings ===== */}
       <CollapsibleSection title="GitHub Settings" badge={<span style={statusBadge(ghConfigured)}>{ghConfigured ? 'Configured' : 'Not configured'}</span>}>
+        <SavedConfig items={[
+          { label: 'Token', value: ghMaskedToken || '—' },
+          { label: 'API URL', value: ghApiUrl },
+          { label: 'Organization', value: ghOrgName || '—' },
+        ]} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Token</label>
@@ -455,6 +480,17 @@ export function Admin() {
 
       {/* ===== Section 3: LLM Settings ===== */}
       <CollapsibleSection title="LLM Settings" badge={<span style={statusBadge(llmConfigured)}>{llmConfigured ? 'Configured' : 'Not configured'}</span>}>
+        <SavedConfig items={[
+          { label: 'Provider', value: llmProvider === 'vertex_ai' ? 'Google Vertex AI' : 'Anthropic Direct' },
+          { label: 'Primary Model', value: llmPrimaryModel },
+          { label: 'Fallback Model', value: llmFallbackModel || 'None' },
+          ...(llmProvider === 'vertex_ai' ? [
+            { label: 'Project ID', value: llmVertexProjectId || '—' },
+            { label: 'Region', value: llmVertexRegion },
+          ] : []),
+          { label: 'Max Retries', value: String(llmMaxRetries) },
+          { label: 'Cost Limit', value: llmCostLimit > 0 ? `$${llmCostLimit}` : 'Unlimited' },
+        ]} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Provider</label>
@@ -534,6 +570,13 @@ export function Admin() {
 
       {/* ===== Section 3: Linear Settings ===== */}
       <CollapsibleSection title="Linear Settings" badge={<span style={statusBadge(linearConfigured)}>{linearConfigured ? 'Configured' : 'Not configured'}</span>}>
+        <SavedConfig items={[
+          { label: 'Team ID', value: linearTeamId || '—' },
+          { label: 'Workspace', value: linearWorkspace || '—' },
+          { label: 'Auto-create', value: linearAutoCreate ? 'Yes' : 'No' },
+          { label: 'Min Severity', value: linearMinSeverity },
+          { label: 'Max Tasks/Scan', value: String(linearMaxTasks) },
+        ]} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>API Key</label>
@@ -604,6 +647,12 @@ export function Admin() {
 
       {/* ===== Section 4: Notification Settings ===== */}
       <CollapsibleSection title="Notification Settings" badge={<span style={statusBadge(notifConfigured)}>{notifConfigured ? 'Configured' : 'Not configured'}</span>}>
+        <SavedConfig items={[
+          { label: 'Slack Webhook', value: slackWebhook ? slackWebhook.slice(0, 40) + '...' : '—' },
+          { label: 'Email', value: notifEmail || '—' },
+          { label: 'On Critical', value: notifCritical ? 'Yes' : 'No' },
+          { label: 'On Gate Fail', value: notifGateFailure ? 'Yes' : 'No' },
+        ]} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Slack Webhook URL</label>
