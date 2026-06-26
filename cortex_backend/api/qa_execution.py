@@ -253,7 +253,7 @@ def _exec_to_dict(e: QAExecution) -> dict:
         "executive_pdf_path": e.executive_pdf_path,
         "execution_log": e.execution_log,
         "error_message": e.error_message,
-        "started_at": e.started_at.isoformat() if e.started_at else None,
-        "completed_at": e.completed_at.isoformat() if e.completed_at else None,
-        "created_at": e.created_at.isoformat() if e.created_at else None,
+        "started_at": (e.started_at.isoformat() + "Z") if e.started_at else None,
+        "completed_at": (e.completed_at.isoformat() + "Z") if e.completed_at else None,
+        "created_at": (e.created_at.isoformat() + "Z") if e.created_at else None,
     }
