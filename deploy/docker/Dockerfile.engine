@@ -21,7 +21,7 @@ WORKDIR /app
 COPY pyproject.toml .
 COPY cortex_engine/ cortex_engine/
 
-RUN pip install --no-cache-dir -e ".[tier1]"
+RUN pip install --no-cache-dir -e ".[tier1,graph]"
 
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1

@@ -25,7 +25,7 @@ COPY cortex_backend/ cortex_backend/
 # Copy pre-built frontend if available
 COPY cortex_frontend/dist/ cortex_frontend/dist/
 
-RUN pip install --no-cache-dir -e ".[tier1,backend]"
+RUN pip install --no-cache-dir -e ".[tier1,backend,graph]"
 
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
