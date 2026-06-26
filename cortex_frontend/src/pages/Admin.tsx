@@ -160,20 +160,40 @@ function CollapsibleSection({ title, badge, defaultOpen = false, children }: {
   );
 }
 
-function SavedConfig({ items }: { items: Array<{ label: string; value: string }> }) {
+function SavedConfig({ items, isEditing, onEdit, onCancelEdit, onDelete }: {
+  items: Array<{ label: string; value: string }>;
+  isEditing: boolean;
+  onEdit: () => void;
+  onCancelEdit: () => void;
+  onDelete?: () => void;
+}) {
   const hasValues = items.some(i => i.value && i.value !== '—');
   if (!hasValues) return null;
   return (
-    <div style={{ background: '#f0f7ff', border: '1px solid #b8daff', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
-      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f3460', marginBottom: '8px' }}>Active Configuration</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px', fontSize: '13px' }}>
-        {items.map(i => (
-          <div key={i.label}>
-            <span style={{ color: '#666' }}>{i.label}: </span>
-            <strong style={{ color: '#333' }}>{i.value || '—'}</strong>
-          </div>
-        ))}
+    <div style={{ background: isEditing ? '#fff8e1' : '#f0f7ff', border: `1px solid ${isEditing ? '#ffc107' : '#b8daff'}`, borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f3460' }}>{isEditing ? 'Editing Configuration' : 'Active Configuration'}</div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {!isEditing ? (
+            <button onClick={onEdit} style={{ padding: '3px 12px', background: '#0f3460', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+          ) : (
+            <button onClick={onCancelEdit} style={{ padding: '3px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+          )}
+          {onDelete && !isEditing && (
+            <button onClick={onDelete} style={{ padding: '3px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>Clear All</button>
+          )}
+        </div>
       </div>
+      {!isEditing && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px', fontSize: '13px' }}>
+          {items.map(i => (
+            <div key={i.label}>
+              <span style={{ color: '#666' }}>{i.label}: </span>
+              <strong style={{ color: '#333' }}>{i.value || '—'}</strong>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -352,6 +372,12 @@ export function Admin() {
   // --- Repository Management ---
   const [repos, setRepos] = useState<Repository[]>([]);
   const [repoMsg, setRepoMsg] = useState('');
+
+  // --- Edit toggles ---
+  const [editGithub, setEditGithub] = useState(false);
+  const [editLlm, setEditLlm] = useState(false);
+  const [editLinear, setEditLinear] = useState(false);
+  const [editNotif, setEditNotif] = useState(false);
 
   // --- Automation Rules ---
   const [rules, setRules] = useState<AutomationRule[]>([]);
@@ -563,24 +589,26 @@ export function Admin() {
           { label: 'Token', value: ghMaskedToken || '—' },
           { label: 'API URL', value: ghApiUrl },
           { label: 'Organization', value: ghOrgName || '—' },
-        ]} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Token</label>
-            <input style={inputStyle} type="password" value={ghToken} onChange={e => setGhToken(e.target.value)}
-              placeholder={ghConfigured ? '(unchanged -- enter new token to update)' : 'ghp_...'} />
+        ]} isEditing={editGithub} onEdit={() => setEditGithub(true)} onCancelEdit={() => setEditGithub(false)} />
+        {editGithub && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Token</label>
+              <input style={inputStyle} type="password" value={ghToken} onChange={e => setGhToken(e.target.value)}
+                placeholder={ghConfigured ? '(unchanged -- enter new token to update)' : 'ghp_...'} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>API URL</label>
+              <input style={inputStyle} value={ghApiUrl} onChange={e => setGhApiUrl(e.target.value)} placeholder="https://api.github.com" />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Organization / User</label>
+              <input style={inputStyle} value={ghOrgName} onChange={e => setGhOrgName(e.target.value)} placeholder="e.g. Ruya-AI" />
+            </div>
           </div>
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>API URL</label>
-            <input style={inputStyle} value={ghApiUrl} onChange={e => setGhApiUrl(e.target.value)} placeholder="https://api.github.com" />
-          </div>
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Organization / User</label>
-            <input style={inputStyle} value={ghOrgName} onChange={e => setGhOrgName(e.target.value)} placeholder="e.g. Ruya-AI" />
-          </div>
-        </div>
-        <button style={buttonStyle} onClick={saveGithub}>Save GitHub Settings</button>
-        {ghMsg && <p style={msgStyle(ghMsg)}>{ghMsg}</p>}
+          <button style={buttonStyle} onClick={() => { saveGithub(); setEditGithub(false); }}>Save GitHub Settings</button>
+          {ghMsg && <p style={msgStyle(ghMsg)}>{ghMsg}</p>}
+        </>)}
         <ConfigManager section="github" fields={[
           { key: 'token', label: 'Token', type: 'password' },
           { key: 'api_url', label: 'API URL' },
@@ -614,8 +642,8 @@ export function Admin() {
           ] : []),
           { label: 'Max Retries', value: String(llmMaxRetries) },
           { label: 'Cost Limit', value: llmCostLimit > 0 ? `$${llmCostLimit}` : 'Unlimited' },
-        ]} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        ]} isEditing={editLlm} onEdit={() => setEditLlm(true)} onCancelEdit={() => setEditLlm(false)} />
+        {editLlm && (<><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Provider</label>
             <select style={selectStyle} value={llmProvider} onChange={e => setLlmProvider(e.target.value)}>
@@ -688,8 +716,9 @@ export function Admin() {
               onChange={e => setLlmCostLimit(Number(e.target.value))} />
           </div>
         </div>
-        <button style={buttonStyle} onClick={saveLLM}>Save LLM Settings</button>
+        <button style={buttonStyle} onClick={() => { saveLLM(); setEditLlm(false); }}>Save LLM Settings</button>
         {llmMsg && <p style={msgStyle(llmMsg)}>{llmMsg}</p>}
+        </>)}
         <ConfigManager section="llm" fields={[
           { key: 'provider', label: 'Provider', options: [{ value: 'vertex_ai', label: 'Vertex AI' }, { value: 'anthropic', label: 'Anthropic' }] },
           { key: 'api_key', label: 'API Key', type: 'password' },
@@ -710,8 +739,8 @@ export function Admin() {
           { label: 'Auto-create', value: linearAutoCreate ? 'Yes' : 'No' },
           { label: 'Min Severity', value: linearMinSeverity },
           { label: 'Max Tasks/Scan', value: String(linearMaxTasks) },
-        ]} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        ]} isEditing={editLinear} onEdit={() => setEditLinear(true)} onCancelEdit={() => setEditLinear(false)} />
+        {editLinear && (<><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>API Key</label>
             <input
@@ -775,8 +804,9 @@ export function Admin() {
             Auto-create tasks from findings
           </label>
         </div>
-        <button style={buttonStyle} onClick={saveLinear}>Save Linear Settings</button>
+        <button style={buttonStyle} onClick={() => { saveLinear(); setEditLinear(false); }}>Save Linear Settings</button>
         {linearMsg && <p style={msgStyle(linearMsg)}>{linearMsg}</p>}
+        </>)}
         <ConfigManager section="linear" fields={[
           { key: 'api_key', label: 'API Key', type: 'password' },
           { key: 'team_id', label: 'Team ID' },
@@ -793,8 +823,8 @@ export function Admin() {
           { label: 'Email', value: notifEmail || '—' },
           { label: 'On Critical', value: notifCritical ? 'Yes' : 'No' },
           { label: 'On Gate Fail', value: notifGateFailure ? 'Yes' : 'No' },
-        ]} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        ]} isEditing={editNotif} onEdit={() => setEditNotif(true)} onCancelEdit={() => setEditNotif(false)} />
+        {editNotif && (<><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Slack Webhook URL</label>
             <input
@@ -837,8 +867,9 @@ export function Admin() {
             Notify on gate failure
           </label>
         </div>
-        <button style={buttonStyle} onClick={saveNotifications}>Save Notification Settings</button>
+        <button style={buttonStyle} onClick={() => { saveNotifications(); setEditNotif(false); }}>Save Notification Settings</button>
         {notifMsg && <p style={msgStyle(notifMsg)}>{notifMsg}</p>}
+        </>)}
         <ConfigManager section="notifications" fields={[
           { key: 'slack_webhook_url', label: 'Slack Webhook URL' },
           { key: 'email', label: 'Email' },
