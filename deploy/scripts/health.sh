@@ -47,5 +47,9 @@ for tool in trivy gitleaks osv-scanner bandit ruff; do
 done
 echo "$TOOLS_OK/$TOOLS_TOTAL available"
 
+# Graphify (code graph)
+echo -n "Graphify: "
+python3 -c "from graphify.extract import extract; print('AVAILABLE')" 2>/dev/null || echo "NOT INSTALLED (optional)"
+
 echo ""
 echo "=== Done ==="
