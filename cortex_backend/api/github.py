@@ -141,7 +141,7 @@ async def fetch_prs(repo_id: str, db: AsyncSession = Depends(get_db)):
                 owner=repo.owner,
                 repo_name=repo.repo_name,
                 **pr_row,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
             db.add(pr)
             created_count += 1

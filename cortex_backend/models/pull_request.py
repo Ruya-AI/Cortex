@@ -31,7 +31,7 @@ class PullRequest(Base):
     # Timestamps
     github_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     github_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Owner/repo for display
     owner: Mapped[str] = mapped_column(String(255), default="")

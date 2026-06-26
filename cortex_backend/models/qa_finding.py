@@ -32,4 +32,4 @@ class QAFinding(Base):
     # Linear task linkage
     linear_task_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

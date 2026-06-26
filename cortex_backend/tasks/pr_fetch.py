@@ -59,7 +59,7 @@ async def fetch_prs_for_all_repos():
                             owner=repo.owner,
                             repo_name=repo.repo_name,
                             **pr_data,
-                            fetched_at=datetime.now(timezone.utc),
+                            fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
                         )
                         db.add(pr)
 

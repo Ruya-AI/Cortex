@@ -47,7 +47,7 @@ async def create_linear_tasks_for_execution(execution_id: str):
                 title=f"[{finding.severity.upper()}] {finding.title[:100]}",
                 status="created",
                 priority=finding.severity,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
             db.add(task)
 

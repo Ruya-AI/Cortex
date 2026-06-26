@@ -39,7 +39,7 @@ async def trigger_qa_execution(
         execution_type=request.execution_type,
         trigger="web-ui",
         status="pending",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(execution)
     await db.commit()
@@ -98,7 +98,7 @@ async def _run_qa_in_background(execution_id, repo_url, branch, pr_number, tiers
                 if execution and execution.status in ("running", "pending"):
                     execution.status = "failed"
                     execution.error_message = f"Background task crashed: {e}"
-                    execution.completed_at = datetime.now(timezone.utc)
+                    execution.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
                     await db.commit()
         except Exception:
             pass
@@ -148,7 +148,7 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
             return
 
         execution.status = "running"
-        execution.started_at = datetime.now(timezone.utc)
+        execution.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await db.commit()
 
         await broadcast_progress(execution_id, {
@@ -228,7 +228,7 @@ async def _run_qa_inner(execution_id, repo_url, branch, pr_number, tiers, cost_l
                 "error": str(e),
             })
         finally:
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
 
 def _exec_to_dict(e: QAExecution) -> dict:

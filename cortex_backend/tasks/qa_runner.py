@@ -40,8 +40,8 @@ async def run_qa_for_pr(
             tiers=",".join(str(t) for t in (tiers or [1, 2])),
             trigger="web-ui",
             status="running",
-            started_at=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(execution)
 
@@ -126,7 +126,7 @@ async def run_qa_for_pr(
             pr.qa_status = "failed"
 
         finally:
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
 
 
