@@ -118,6 +118,23 @@ class ScanOrchestrator:
 
             _progress(f"Found {len(file_set.reviewable_files)} reviewable files")
 
+            # Phase 4.5: Code graph (optional, fault-tolerant)
+            code_graph = None
+            if any(t >= 2 for t in request.tiers):
+                try:
+                    from cortex_engine.infrastructure.code_graph import CodeGraph
+                    if CodeGraph.is_available():
+                        if request.full_scan:
+                            _progress("Building code graph...")
+                            code_graph = CodeGraph.build(repo_path, file_set.reviewable_files)
+                        else:
+                            code_graph = CodeGraph.load(repo_path)
+                        if code_graph:
+                            summary = CodeGraph.get_summary(code_graph)
+                            _progress(f"  Graph: {summary.get('nodes', 0)} nodes, {summary.get('edges', 0)} edges")
+                except Exception:
+                    pass
+
             # Phase 5: Tier 1 tools
             tier1_result = Tier1RunResult()
             if 1 in request.tiers and self._tier1_runner:
@@ -134,7 +151,7 @@ class ScanOrchestrator:
             if self._risk_scorer and not request.full_scan:
                 _progress("Computing risk scores...")
                 try:
-                    risk = self._risk_scorer.score(file_set.reviewable_files, tier1_result, config)
+                    risk = self._risk_scorer.score(file_set.reviewable_files, tier1_result, config, code_graph=code_graph)
                     _progress(f"  {len(risk.high_risk_files)} high-risk, {len(risk.low_risk_files)} low-risk")
                 except Exception as e:
                     logger.warning("Risk scoring failed: %s", e)
@@ -215,6 +232,7 @@ class ScanOrchestrator:
                 "remote_url": repo_context.remote_url if repo_context else "",
                 "commit_sha": repo_context.commit_sha if repo_context else "",
                 "skip_summary": file_set.skip_summary,
+                "code_graph": self._get_graph_summary(code_graph),
             }
 
             json_path = None
@@ -332,6 +350,16 @@ class ScanOrchestrator:
                         shutil.rmtree(repo_context.local_path, ignore_errors=True)
                 except Exception as cleanup_err:
                     logger.warning("Failed to clean up temp clone: %s", cleanup_err)
+
+    @staticmethod
+    def _get_graph_summary(code_graph) -> dict | None:
+        if code_graph is None:
+            return None
+        try:
+            from cortex_engine.infrastructure.code_graph import CodeGraph
+            return CodeGraph.get_summary(code_graph)
+        except Exception:
+            return None
 
     def _count_severities(self, findings):
         counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}

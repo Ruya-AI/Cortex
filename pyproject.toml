@@ -35,6 +35,9 @@ tier1 = [
     "checkov>=3.0",
     "pip-licenses>=4.0",
 ]
+graph = [
+    "graphifyy>=0.8",
+]
 backend = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
