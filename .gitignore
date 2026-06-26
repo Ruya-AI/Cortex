@@ -18,10 +18,13 @@ env/
 *.swp
 *.swo
 
-# QA Platform output
+# Cortex output
 .qa-reports/
-.qa-platform.db
+.cortex.db
 *.db
+
+# Local admin config (contains credentials)
+cortex-admin-config-local.yaml
 
 # OS
 .DS_Store

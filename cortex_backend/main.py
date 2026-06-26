@@ -48,6 +48,9 @@ async def lifespan(app: FastAPI):
             if result.rowcount > 0:
                 await db.commit()
                 logger.info("Marked %d stale running executions as failed", result.rowcount)
+        # Auto-populate default configs from local YAML if DB is empty
+        await _load_default_configs(async_session)
+
     except Exception as e:
         logger.warning("Database init failed (PostgreSQL may not be running): %s", e)
 
@@ -70,6 +73,45 @@ async def lifespan(app: FastAPI):
         task.cancel()
     _background_tasks.clear()
     logger.info("Shutting down Cortex Web...")
+
+
+async def _load_default_configs(async_session_factory):
+    """Load default admin configs from cortex-admin-config-local.yaml if DB is empty."""
+    from sqlalchemy import select, func
+    from cortex_backend.models.app_config import AppConfig
+    from cortex_backend.services.admin_settings import AdminSettings
+
+    async with async_session_factory() as db:
+        count_result = await db.execute(select(func.count(AppConfig.id)))
+        existing_count = count_result.scalar() or 0
+        if existing_count > 0:
+            logger.info("Admin configs already exist (%d entries), skipping default load", existing_count)
+            return
+
+    config_path = Path(__file__).parent.parent / "cortex-admin-config-local.yaml"
+    if not config_path.exists():
+        logger.info("No cortex-admin-config-local.yaml found, skipping default config load")
+        return
+
+    try:
+        import yaml
+        data = yaml.safe_load(config_path.read_text())
+        if not isinstance(data, dict):
+            return
+
+        async with async_session_factory() as db:
+            count = 0
+            for section, values in data.items():
+                if not isinstance(values, dict):
+                    continue
+                for key, value in values.items():
+                    full_key = f"{section}.{key}"
+                    await AdminSettings.set(db, full_key, str(value), category=section)
+                    count += 1
+            await db.commit()
+            logger.info("Loaded %d default configs from %s", count, config_path.name)
+    except Exception as e:
+        logger.warning("Failed to load default configs: %s", e)
 
 
 async def _stale_execution_reaper():
