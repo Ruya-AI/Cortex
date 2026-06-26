@@ -44,7 +44,7 @@ cortex_frontend/  React web UI (served by Nginx or backend)
 docker compose -f deploy/docker/docker-compose.yml up -d postgres
 
 # 2. Install Python dependencies
-pip install -e ".[tier1,backend]"
+pip install -e ".[tier1,backend,graph]"
 
 # 3. Build frontend
 cd cortex_frontend && npm install && npm run build && cd ..

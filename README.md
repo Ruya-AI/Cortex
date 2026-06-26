@@ -776,11 +776,11 @@ cortex/
 │   ├── core/                          #   Finding entity, schemas, processing pipeline
 │   ├── agents/                        #   5 specialized AI agents + infrastructure
 │   ├── tools/                         #   27 tool wrappers + base + runner + repo scanner
-│   ├── orchestration/                 #   14-phase scan pipeline + engines
-│   ├── assessment/                    #   Quality gate + risk scorer
+│   ├── orchestration/                 #   15-phase scan pipeline + engines
+│   ├── assessment/                    #   Quality gate + graph-enhanced risk scorer
 │   ├── reporting/                     #   Full report + executive summary (PDF cap: 500 findings)
 │   ├── integrations/                  #   GitHub, Linear, Slack, dispatcher
-│   ├── infrastructure/                #   Git, LLM client, config, hygiene checker
+│   ├── infrastructure/                #   Git, LLM client, config, hygiene checker, code graph (Graphify)
 │   └── knowledge/                     #   SAST rules, CWE tree, design principles
 │
 ├── cortex_backend/                    # Backend service layer
@@ -808,11 +808,33 @@ cortex/
 
 ---
 
+## Code Graph Analysis (Graphify)
+
+Cortex integrates [Graphify](https://github.com/safishamsi/graphify) for structural code analysis using Tree-sitter — no LLM cost.
+
+| Feature | What It Provides |
+|---------|-----------------|
+| **Call graphs** | Which functions call which — used for impact analysis |
+| **Import maps** | Module dependencies and relationships |
+| **God nodes** | Most-connected code — higher risk when changed |
+| **Affected analysis** | What breaks if a specific function changes |
+| **Graph caching** | Built once on full scan, reused for PR/commit scans |
+
+**How it works:**
+- **Full scan (Tier 2+)**: builds code graph from source files, caches at `~/.cortex/graph_cache/`
+- **PR/commit scan**: loads cached graph, analyzes impact of changed files
+- **Tier 1 only**: graph is skipped (tools don't need it)
+- **Graphify not installed**: Cortex continues normally without graph features
+
+Install: `pip install graphifyy` (optional — listed in `[graph]` extra)
+
+---
+
 ## Development
 
 ```bash
 # Install with dev dependencies
-pip install -e ".[dev,tier1,backend]"
+pip install -e ".[dev,tier1,backend,graph]"
 
 # Run tests
 PYTHONPATH=. pytest
